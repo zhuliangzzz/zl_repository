@@ -6,6 +6,7 @@ import com.example.zl.listener.MyEvent;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.ui.Model;
 
 import javax.annotation.Resource;
 import java.util.ArrayList;
@@ -40,16 +41,18 @@ public class BloggerService {
 
     }
 
-    public String login(Blogger blogger) {
+    public String login(Blogger blogger, Model model) {
         ArrayList res = bloggerMapper.selectBlogger(blogger);
         if (res.size() > 0) {
+            model.addAttribute("user",blogger.getName());
             if ("admin".equals(blogger.getName())) {
                 return "admin/index";
             } else {
                 return "index";
             }
         } else {
-            return "redict:login";
+            model.addAttribute("tip", "Incorrect username or password.");
+            return "login";
         }
     }
 

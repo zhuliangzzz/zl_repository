@@ -53,12 +53,13 @@ public class MyInterceptor implements HandlerInterceptor {
             String name = method.getName();
             logger.info("拦截到方法{},该方法在执行前被拦截到...", name);
 //            通过方法 获取方法上的注解，根据注解判断该方法是否要被拦截
-            Uninterception annotation = method.getAnnotation(Uninterception.class);
-            if(null != annotation){    //有注解，不拦截 ;没有注解，拦截不执行
-                return true;
-            }else{
-                return false;
-            }
+//            Uninterception annotation = method.getAnnotation(Uninterception.class);
+//            if(null != annotation){    //有注解，不拦截 ;没有注解，拦截不执行
+//                return true;
+//            }else{
+//                return false;
+//            }
+            return true;
 //            String token = request.getParameter("token");
 //            if (null == token || "".equals(token)) {
 //                logger.info("用户未登录，没有权限===========请重新登录");

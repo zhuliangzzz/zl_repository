@@ -59,7 +59,7 @@ public class BloggerController {
      * @return
      */
     @PostMapping("/login")
-    public String login(Blogger blogger) {
-        return bloggerService.login(blogger);
+    public String login(Blogger blogger, Model model) {
+        return bloggerService.login(blogger, model);
     }
 }

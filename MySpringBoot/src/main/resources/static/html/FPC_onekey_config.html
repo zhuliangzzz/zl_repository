@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>一键检查首页</title>
+    <script src="../jquery/jquery.min.js" type="text/javascript"></script>
+    <link href="../bootstrap/dist/css/bootstrap.min.css" rel="stylesheet"/>
+    <script src="../bootstrap/dist/js/bootstrap.min.js" type="text/javascript"></script>
+</head>
+<body>
+<div class="container">
+    <h2 class="text-center"><span style="float:left;"><a href="index.html" class="lead text-primary">home</a></span>一键检查 fpc_onekey_config</h2>
+    <div style="height: 800px;overflow-y:auto;" class="row">
+    <table id="datatable" class="table table-responsive table-hover small" style="word-break: break-all;">
+        <thead>
+        <tr class="text-center">
+            <th class="col-md-2">加入时间</th>
+            <th class="col-md-2">脚本名称</th>
+            <th class="col-md-1">脚本级别</th>
+            <th class="col-md-2">脚本路径</th>
+            <th class="col-md-1">脚本key值</th>
+            <th class="col-md-2">脚本描述</th>
+            <th class="col-md-1">脚本类别</th>
+            <th class="col-md-1">测试用户</th>
+        </tr>
+        </thead>
+        <tbody>
+
+        </tbody>
+    </table>
+    <!--<nav class="navbar navbar-fixed-bottom">-->
+    <!--<div class="container-fluid">-->
+    <!--<ul class="pagination pager">-->
+    <!--<li>-->
+    <!--<a href="#" aria-label="Previous" class="btn btn-primary">-->
+    <!--<span aria-hidden="true">&laquo;</span>-->
+    <!--</a>-->
+    <!--</li>-->
+    <!--<li><a href="#" class="btn btn-primary">1</a></li>-->
+    <!--<li><a href="#" class="btn btn-primary">2</a></li>-->
+    <!--<li><a href="#" class="btn btn-primary">3</a></li>-->
+    <!--<li><a href="#" class="btn btn-primary">4</a></li>-->
+    <!--<li><a href="#" class="btn btn-primary">5</a></li>-->
+    <!--<li>-->
+    <!--<a href="# " class="btn btn-primary">-->
+    <!--<span aria-hidden="true">&raquo;</span>-->
+    <!--</a>-->
+    <!--</li>-->
+    <!--</ul>-->
+    <!--</div>-->
+    <!--</nav>-->
+    </div>
+    <p id="pager" style="text-align: right;font-size: .8em;">第<span></span>页&nbsp;&nbsp;共<span>?</span>页</p>
+    <nav class="nav" style="position:fixed;bottom: 0;left:50%;transform: translateX(-50%)">
+        <ul class="pagination " id="pager_ul">
+            <li>
+                <a href="javascript:previousPage();" class="btn btn-primary">
+                    <span>&laquo;</span>
+                </a>
+            </li>
+            <!--<li><a href="javascript:showpage(1)">1</a></li>-->
+            <!--<li><a href="javascript:showpage(2)">2</a></li>-->
+            <!--<li><a href="javascript:showpage(3)">3</a></li>-->
+            <!--<li><a href="javascript:showpage(4)">4</a></li>-->
+            <!--<li><a href="javascript:showpage(5)">5</a></li>-->
+            <li>
+                <a href="javascript:nextPage();" class="btn btn-primary">
+                    <span>&raquo;</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</div>
+<script src="../js/FPC_onekey_config.js"></script>
+</body>
+</html>
