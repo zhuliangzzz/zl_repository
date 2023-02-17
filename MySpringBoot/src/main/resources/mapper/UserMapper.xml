@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.zl.dao.BloggerMapper">
+    <!--<resultMap id="userResultMap" type="com.example.zl.entity.Blogger">-->
+    <!--<id column="id" jdbcType="INTEGER" property="id" />-->
+    <!--<result column="name" jdbcType="VARCHAR" property="name"/>-->
+    <!--<result column="password" jdbcType="VARCHAR" property="pass" />-->
+    <!--</resultMap>-->
+    <resultMap id="userResultMap" type="com.example.zl.entity.Blogger">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="password" property="pass"/>
+    </resultMap>
+    <select id="selectBloggerById" resultMap="userResultMap" parameterType="java.lang.Integer">
+          SELECT * from blogger where id = #{id}
+    </select>
+    <select id="selectBloggerByName" resultMap="userResultMap" parameterType="java.lang.String">
+        SELECT * from blogger where name = #{name}
+    </select>
+    <select id="selectBlogger" resultMap="userResultMap" parameterType="Blogger">
+        select name,password from blogger where name=#{name} and password=#{pass}
+    </select>
+    <select id="selectAllBlogger" resultMap="userResultMap">
+        select * from blogger
+    </select>
+    <insert id="insertBlogger" parameterType="blogger">
+        INSERT INTO blogger(name,password) values(#{name},#{pass})
+    </insert>
+</mapper>

@@ -1,0 +1,49 @@
+SpringBoot项目构建
+1.修改项目文件等编码。
+ FIle -> Settings... -> Editor -> File Encodings -> 3处位置全部设为[UTF-8].
+2.设置maven。
+ FIle -> Settings... -> Build -> maven.
+3.热部署。
+spring-boot-devtools依赖.
+File -> setting -> build -> compiler -> build project automatically.
+4.返回数据封装。
+JsonResult<>类.
+5.fastjson配置null值处理。
+MyFastJsonConfig配置类。
+6.配置日志slf4j。
+application.yml 配置logbak.xml文件.
+常用的日志级别按照从高到低依次为：ERROR、WARN、INFO、DEBUG。
+7.spring:profiles:active: - dev 指定环境对应的配置文件
+8.常用注解的使用 @RestController @Configuration @RequestMapping @PathVariable @RequestParam @RequestBody...
+9.集成swagger2展示在线接口文档。
+10.thymeleaf模板引擎。
+11.全局异常处理。
+①定义异常返回的json结构 ②处理异常
+12.AOP处理。
+@Pointcut：定义一个切面，即上面所描述的关注的某件事入口。
+@Before：在做某件事之前做的事。
+@After：在做某件事之后做的事。
+@AfterReturning：在做某件事之后，对其返回值做增强处理。
+@AfterThrowing：在做某件事抛出异常时，处理。
+@Aspect定义一个切面类  @Component交由容器管理 @PointCut 要处理的
+@Before 方法调用之前 @After 方法调用之后 @AfterReturning捕获方法执行后的返回值 @AfterThrowing 执行方法产生异常时进入
+13.集成mybatis。
+配置mysql数据库连接,druid数据源。
+xml、注解两种方式。
+@Mapper 定义mapper类,可以在启动类使用包扫描@MapperScan(basePackages="")
+14.事务配置。
+@Transactional
+15.监听器的使用。
+AplicationListener   HttpSessionListener ServletRequestListener 自定义事件（继承applicationEvent) 自定义监听器
+16.拦截器的使用。
+拦截对动态资源的后台请求，即拦截对控制层的请求。
+①定义拦截器。
+实现 HandlerInterceptor 接口。
+preHandle(……) 方法：该方法的执行时机是，当某个 url 已经匹配到对应的 Controller 中的某个方法，且在这个方法执行之前。所以 preHandle(……) 方法可以决定是否将请求放行，这是通过返回值来决定的，返回 true 则放行，返回 false 则不会向后执行。
+postHandle(……) 方法：该方法的执行时机是，当某个 url 已经匹配到对应的 Controller 中的某个方法，且在执行完了该方法，但是在 DispatcherServlet 视图渲染之前。所以在这个方法中有个 ModelAndView 参数，可以在此做一些修改动作。
+afterCompletion(……) 方法：顾名思义，该方法是在整个请求处理完成后（包括视图渲染）执行，这时做一些资源的清理工作，这个方法只有在 preHandle(……) 被成功执行后并且返回 true 才会被执行。
+②配置拦截器。
+继承WebMvcConfigurationSupport类，重写addInterceptors方法，将定义好的拦截器添加进去。
+
+
+

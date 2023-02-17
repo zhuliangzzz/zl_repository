@@ -1,0 +1,20 @@
+spring:
+  profiles:
+    active:
+      - dev
+  thymeleaf:
+        prefix: classpath:/templates/
+        suffix: .html
+        cache: false
+        encoding: UTF-8
+
+logging:
+  config:
+    classpath: logbak.xml
+  level:
+    com.example.zl.entity: trace
+
+url:
+  orderUrl: http://localhost:8001
+  userUrl: http://localhost:8002
+  shoppingUrl: http://localhost:8003

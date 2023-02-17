@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>bloggerList</title>
+</head>
+<body>
+<p>用户列表</p>
+<form action="" th:each="blog : ${blogList}">
+    用户编号：<input type="text" th:value="${blog.id}"><br/>
+    用户姓名：<input type="text" th:value="${blog.name}"><br/>
+    用户密码：<input type="text" th:value="${blog.pass}"><br/>
+</form>
+</body>
+</html>

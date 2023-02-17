@@ -1,0 +1,31 @@
+server:
+  port: 8080
+#mysql配置
+datasource:
+  url: localhost:3306/test
+spring:
+  datasource:
+    url: jdbc:mysql://${datasource.url}?serverTimezone=Asia/Shanghai&useSSL=false&useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&autoReconnect=true&failOverReadOnly=false&maxReconnects=10
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    type: com.alibaba.druid.pool.DruidDataSource
+    initialSize: 5
+    minIdle: 5
+    maxActive: 20
+    maxWait: 60000
+    time-between-eviction-runs-millis: 60000
+    min-evictable-idle-time-millis: 300000
+    validation-query: SELECT 1 FORM DUAL
+    test-while-idle: true
+    test-on-borrow: true
+    test-on-return: false
+    pool-prepared-statements: true
+
+# mybatis 基于xml配置
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  # 指定别名设置的包
+  type-aliases-package: com.example.zl.entity
+  configuration:
+    map-underscore-to-camel-case: true
