@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.zl.dao.FilmInstructionMapper">
+    <!--<resultMap id="userResultMap" type="com.example.zl.entity.Blogger">-->
+    <!--<id column="id" jdbcType="INTEGER" property="id" />-->
+    <!--<result column="name" jdbcType="VARCHAR" property="name"/>-->
+    <!--<result column="password" jdbcType="VARCHAR" property="pass" />-->
+    <!--</resultMap>-->
+    <resultMap id="filmInstructionResultMap" type="com.example.zl.entity.FilmInstruction">
+        <id column="id" property="id"/>
+        <result column="jobname" property="jobname"/>
+        <result column="inplanJob" property="inplanJob"/>
+    </resultMap>
+    <select id="selectFilmInstructionById" resultType="com.example.zl.entity.FilmInstruction" parameterType="java.lang.Integer">
+          SELECT * from film_instruction_records where id = #{id}
+    </select>
+    <select id="selectFilmInstructionByName" resultType="com.example.zl.entity.FilmInstruction">
+        SELECT * from film_instruction_records where inplanjob like '%${name}%'
+    </select>
+    <select id="selectPageFilmInstructionByName" resultType="com.example.zl.entity.FilmInstruction">
+        SELECT * from film_instruction_records where inplanjob like '%${name}%' limit #{begin},#{size}
+    </select>
+    <select id="selectAllFilmInstruction" resultType="com.example.zl.entity.FilmInstruction">
+        select * from film_instruction_records
+    </select>
+    <select id="selectPageFilmInstruction" resultType="com.example.zl.entity.FilmInstruction">
+        select * from film_instruction_records limit #{begin},#{size}
+    </select>
+
+</mapper>

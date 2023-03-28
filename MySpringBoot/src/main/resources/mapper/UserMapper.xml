@@ -23,7 +23,17 @@
     <select id="selectAllBlogger" resultMap="userResultMap">
         select * from blogger
     </select>
-    <insert id="insertBlogger" parameterType="blogger">
+    <select id="selectPageBlooger" resultMap="userResultMap">
+        select * from blogger limit #{begin},#{size}
+    </select>
+
+    <delete id="deleteBloggerById" parameterType="java.lang.Integer">
+        delete from blogger where id=#{id}
+    </delete>
+    <update id="updateBlogger" parameterType="Blogger">
+        update blogger set password=#{pass} where name=#{name}
+    </update>
+    <insert id="insertBlogger" parameterType="Blogger">
         INSERT INTO blogger(name,password) values(#{name},#{pass})
     </insert>
 </mapper>

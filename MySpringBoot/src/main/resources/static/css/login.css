@@ -133,7 +133,10 @@ p,.wordsBreak{
     color:#fff;
     background-color: #2ea44f;
 }
-
+.flash{
+    padding-top: 20px;
+    text-align: center;
+}
 
 .session-authentication .flash {
     padding: 15px 20px;

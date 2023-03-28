@@ -3,18 +3,138 @@
 <html xmlns:th="htttp://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
     <title>管理员主页</title>
-    <link rel="stylesheet" href="../../static/bootstrap/dist/css/bootstrap.min.css">
-    <script src="../../static/jquery/jquery.min.js"></script>
-    <script src="../../static/bootstrap/dist/js/bootstrap.min.js"></script>
+    <link rel="stylesheet" href="../bootstrap/dist/css/bootstrap.min.css">
+    <script src="../jquery/jquery.min.js"></script>
+    <script src="../bootstrap/dist/js/bootstrap.min.js"></script>
 </head>
 <body>
-<p th:text="${user}"></p>
-<div class="container-fluid">
-    <div class="row">
+<nav class="nav nav-bar navbar-inverse">
+    <div class="container">
+        <div class="navbar-collapse collapse">
+            <div class="navbar-header">
+                <a href="#" class="navbar-brand"><span class="glyphicon glyphicon-tower"></span>&nbsp;&nbsp;管理系统</a>
+            </div>
+            <ul class="nav navbar-nav navbar-right">
+                <li class="dropdown"><a href="#" class="dropdown-toggle" data-toggle="dropdown" th:text="${session.user?.name}"></a>
+                    <ul class="dropdown-menu">
+                        <li><a href="#" id="exit_link">退出&nbsp;<span class="glyphicon glyphicon-log-out"></span></a>
+                        </li>
+                    </ul>
+                </li>
+                <!--<div class="btn-group nav navbar-nav navbar-right">-->
+                <!--<ul>-->
 
+                <!--</ul>-->
+                <!--<a th:text="${user}">Action</a>-->
+                <!--<a class="dropdown-toggle" data-toggle="dropdown">-->
+                <!--<span class="caret"></span>-->
+                <!--&lt;!&ndash;<span class="sr-only">Toggle Dropdown</span>&ndash;&gt;-->
+                <!--</a>-->
+                <!--<ul class="dropdown-menu">-->
+                <!--<li><a href="#" id="exit_link">退出&nbsp;<span class="glyphicon glyphicon-log-out"></span></a></li>-->
+                <!--</ul>-->
+                <!--</div>-->
+            </ul>
+        </div>
     </div>
-
+</nav>
+<div class="container">
+    <a href="#" class="btn btn-default btn-info" style="margin:15px 0;" data-toggle="modal"
+       data-target="#addUserModal">＋新增</a>
+    <table class="table table-striped table-condensed table-hover">
+        <thead>
+        <tr class="row">
+            <th class="col-md-1">ID</th>
+            <th class="col-md-4">NAME</th>
+            <th class="col-md-4">PASSWORD</th>
+            <th class="col-md-3">OPERATION</th>
+        </tr>
+        </thead>
+        <input type="hidden" id="currentPage" th:value="${currentPage}"/>
+        <input type="hidden" id="bloggerPages" th:value="${bloggerPages}"/>
+        <tboady>
+            <tr th:each="blog : ${bloggerlist}" class="row" th:attr="user=${blog}">
+                <td class="col-md-1" th:text="${blog?.id}">#</td>
+                <td class="col-md-4" th:text="${blog?.name}">#</td>
+                <td class="col-md-4" th:text="${blog?.pass}">#</td>
+                <td class="col-md-3"><a class="btn btn-primary editUserBtn" data-toggle="modal" data-target="#myModal">编辑</a>
+                    <a class="btn btn-danger delUserBtn">删除</a></td>
+            </tr>
+        </tboady>
+        <!-- Modal -->
+        <div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
+                                aria-hidden="true">&times;</span></button>
+                        <h4 class="modal-title" id="myModalLabel">用户编辑</h4>
+                    </div>
+                    <div class="modal-body">
+                        <form>
+                            <div class="form-group">
+                                <label for="blog_name" class="control-label">用户名:</label>
+                                <input type="text" class="form-control" id="name" disabled>
+                            </div>
+                            <div class="form-group">
+                                <label for="blog_pwd" class="control-label">密码:</label>
+                                <input type="text" class="form-control" id="pwd">
+                            </div>
+                        </form>
+                        <!--<table class="table modal-body">-->
+                        <!--<tr><td><label for="blog_name"></label></td><td><input type="text"  id="blog_name"></td> </tr>-->
+                        <!--<tr><td><label for="blog_pwd"></label></td><td><input type="text" id="blog_pwd"></td></tr>-->
+                        <!--</table>-->
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
+                        <button type="button" class="btn btn-primary" onclick="editSave()">提交</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal fade" id="addUserModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel2">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
+                                aria-hidden="true">&times;</span></button>
+                        <h4 class="modal-title" id="myModalLabel2">用户新增</h4>
+                    </div>
+                    <div class="modal-body">
+                        <form>
+                            <div class="form-group">
+                                <label for="blog_name" class="control-label">用户名:</label>
+                                <input type="text" class="form-control" id="blog_name">
+                            </div>
+                            <div class="form-group">
+                                <label for="blog_pwd" class="control-label">密码:</label>
+                                <input type="text" class="form-control" id="blog_pwd">
+                            </div>
+                        </form>
+                        <!--<table class="table modal-body">-->
+                        <!--<tr><td><label for="blog_name"></label></td><td><input type="text"  id="blog_name"></td> </tr>-->
+                        <!--<tr><td><label for="blog_pwd"></label></td><td><input type="text" id="blog_pwd"></td></tr>-->
+                        <!--</table>-->
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
+                        <button type="button" class="btn btn-primary" onclick="addUser()">提交</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </table>
 </div>
+<nav aria-label="search results pages" class="text-center navbar-fixed-bottom">
+    <ul class="pagination overflow-hidden">
+        <li><a href="#" class="prev btn btn-default">&laquo;</a></li>
+        <li th:each="index : ${#numbers.sequence(1, bloggerPages)}" ><a href="#" class="page btn">[(${index})]</a></li>
+        <li><a href="#" class="next btn btn-default">&raquo;</a></li>
+    </ul>
+</nav>
 </body>
+<script src="../template/admin/js/index.js"></script>
 </html>

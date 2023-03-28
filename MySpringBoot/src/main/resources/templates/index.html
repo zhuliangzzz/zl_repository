@@ -3,9 +3,159 @@
 <html xmlns:th="htttp://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
     <title>主页</title>
+    <link rel="stylesheet" href="../bootstrap/dist/css/bootstrap.min.css">
+    <script src="../jquery/jquery.min.js"></script>
+    <script src="../bootstrap/dist/js/bootstrap.min.js"></script>
 </head>
 <body>
-<p th:text="${user}"></p>
+<nav class="nav nav-bar navbar-inverse navbar-fixed-top">
+    <div class="container-fluid">
+        <div class="navbar-collapse collapse">
+            <div class="navbar-header">
+                <a href="#" class="navbar-brand"><span class="glyphicon glyphicon-tower"></span>&nbsp;&nbsp;管理系统</a>
+            </div>
+            <ul class="nav navbar-nav navbar-right">
+                <li class="dropdown"><a href="#" class="dropdown-toggle" data-toggle="dropdown"
+                                        th:text="${session.user?.name}"></a>
+                    <ul class="dropdown-menu">
+                        <li><a href="#" id="exit_link">退出&nbsp;<span class="glyphicon glyphicon-log-out"></span></a>
+                        </li>
+                    </ul>
+                </li>
+                <!--<div class="btn-group nav navbar-nav navbar-right">-->
+                <!--<ul>-->
+
+                <!--</ul>-->
+                <!--<a th:text="${user}">Action</a>-->
+                <!--<a class="dropdown-toggle" data-toggle="dropdown">-->
+                <!--<span class="caret"></span>-->
+                <!--&lt;!&ndash;<span class="sr-only">Toggle Dropdown</span>&ndash;&gt;-->
+                <!--</a>-->
+                <!--<ul class="dropdown-menu">-->
+                <!--<li><a href="#" id="exit_link">退出&nbsp;<span class="glyphicon glyphicon-log-out"></span></a></li>-->
+                <!--</ul>-->
+                <!--</div>-->
+            </ul>
+        </div>
+    </div>
+</nav>
+<!--搜索-->
+<div class="row" style="margin:80px auto 20px;">
+    <form class="col-md-4 col-md-offset-4">
+        <div class="input-group"><input type="text" id="searchInput" class="form-control"><a class="btn btn-warning input-group-addon" id="searchBtn">搜索</a>
+        </div>
+    </form>
+</div>
+
+<div class="container-fluid text-center" style="height:750px;overflow-y: scroll;">
+    <table class="table table-condensed table-hover">
+        <thead>
+        <tr class="row">
+            <th class="col-md-1 text-center">ID</th>
+            <th class="col-md-1 text-center">NAME</th>
+            <th class="col-md-1 text-center">face</th>
+            <th class="col-md-1 text-center">checkNo</th>
+            <th class="col-md-1 text-center">checkProjectName</th>
+            <th class="col-md-1 text-center">standardValue</th>
+            <th class="col-md-1 text-center">notes</th>
+            <th class="col-md-1 text-center">imageName</th>
+            <th class="col-md-1 text-center">oprtime</th>
+            <th class="col-md-1 text-center">operation</th>
+        </tr>
+        </thead>
+        <input type="hidden" id="currentPage" th:value="${currentPage}"/>
+        <input type="hidden" id="bloggerPages" th:value="${dataPages}"/>
+        <tboady>
+            <tr th:each="blog : ${datalist}" class="row" th:attr="user=${blog}">
+                <td class="col-md-1" th:text="${blog?.id}">#</td>
+                <td class="col-md-1" th:text="${blog?.inplanJob}">#</td>
+                <td class="col-md-1" th:text="${blog?.face}">#</td>
+                <td class="col-md-1" th:text="${blog?.checkNo}">#</td>
+                <td class="col-md-1" th:text="${blog?.checkProjectName}">#</td>
+                <td class="col-md-1" th:text="${blog?.standardValue}">#</td>
+                <td class="col-md-2" th:text="${blog?.notes}">#</td>
+                <td class="col-md-2" th:text="${blog?.imageName}">#</td>
+                <td class="col-md-1" th:text="${blog?.oprTime}">#</td>
+                <td class="col-md-1"><a class="btn btn-primary showPaper" data-toggle="modal" data-target="#myModal" th:attr="name=${blog?.imageName}">查看图纸</a>
+                </td>
+            </tr>
+        </tboady>
+        <!-- Modal -->
+        <div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
+                                aria-hidden="true">&times;</span></button>
+                        <h4 class="modal-title" id="myModalLabel">图纸</h4>
+                    </div>
+                    <div class="modal-body">
+                            <!--<div class="form-group">-->
+                            <!--<label for="blog_name" class="control-label">用户名:</label>-->
+                            <!--<input type="text" class="form-control" id="name" disabled>-->
+                            <!--</div>-->
+                            <!--<div class="form-group">-->
+                            <!--<label for="blog_pwd" class="control-label">密码:</label>-->
+                            <!--<input type="text" class="form-control" id="pwd">-->
+                            <!--</div>-->
+                            <embed src="/images/logo.png" type="application/pdf" width="100%" height="600px" />
+                        <!--<table class="table modal-body">-->
+                        <!--<tr><td><label for="blog_name"></label></td><td><input type="text"  id="blog_name"></td> </tr>-->
+                        <!--<tr><td><label for="blog_pwd"></label></td><td><input type="text" id="blog_pwd"></td></tr>-->
+                        <!--</table>-->
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
+                        <!--<button type="button" class="btn btn-primary" onclick="editSave()">提交</button>-->
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal fade" id="addUserModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel2">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
+                                aria-hidden="true">&times;</span></button>
+                        <h4 class="modal-title" id="myModalLabel2">用户新增</h4>
+                    </div>
+                    <div class="modal-body">
+                        <form>
+                            <div class="form-group">
+                                <label for="blog_name" class="control-label">用户名:</label>
+                                <input type="text" class="form-control" id="blog_name">
+                            </div>
+                            <div class="form-group">
+                                <label for="blog_pwd" class="control-label">密码:</label>
+                                <input type="text" class="form-control" id="blog_pwd">
+                            </div>
+                        </form>
+                        <!--<table class="table modal-body">-->
+                        <!--<tr><td><label for="blog_name"></label></td><td><input type="text"  id="blog_name"></td> </tr>-->
+                        <!--<tr><td><label for="blog_pwd"></label></td><td><input type="text" id="blog_pwd"></td></tr>-->
+                        <!--</table>-->
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
+                        <button type="button" class="btn btn-primary" onclick="addUser()">提交</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </table>
+</div>
+<nav aria-label="search results pages" class="text-center navbar-fixed-bottom" id="pager">
+    <a class="javascript:;" style="position: relative;top:-30px;">第<span th:text="${currentPage}" id="cp"></span>页</a>
+    <ul class="pagination overflow-hidden">
+        <li><a href="#" class="prev btn btn-default">&laquo;</a></li>
+        <li th:each="index : ${#numbers.sequence(1, dataPages>10?10:dataPages)}"><a class="page btn">[(${index})]</a>
+        </li>
+        <li><a class="next btn btn-default">&raquo;</a></li>
+    </ul>
+    <a href="javascript:;" class="" style="position: relative;top:-30px;">共<span th:text="${dataPages}" id="tp"></span>页</a>
+</nav>
+<script src="../js/index.js"></script>
 </body>
 </html>

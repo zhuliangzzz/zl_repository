@@ -50,11 +50,11 @@ public class GlobalExceptionHandler {
      * @param ex
      * @return
      */
-    @ExceptionHandler(BusinessException.class)
-    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-    public ExceptionJsonResult handleBusinessException(BusinessException ex){
-        return new ExceptionJsonResult(ex.getCode(),ex.getMsg());
-    }
+//    @ExceptionHandler(BusinessException.class)
+//    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+//    public ExceptionJsonResult handleBusinessException(BusinessException ex){
+//        return new ExceptionJsonResult(ex.getCode(),ex.getMsg());
+//    }
     /**
      * 系统未知异常
      * @param ex
