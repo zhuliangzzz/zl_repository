@@ -1,0 +1,287 @@
+form {
+   VER=-1
+   LABEL=sl_opgerber
+   UNITS=I
+   W=3508
+   H=4100
+   ACT=ss
+   CLOSE_ACT=<Empty>
+   AUTO_UPDATE=NO
+}
+label title {
+  g {
+       X=0
+       Y=3485
+       W=3500
+       H=615
+       BW=1
+       BG=608585
+       READABLE=YES
+       EDITABLE=YES
+       LTYPE=L
+       FONT=cbr24
+       LABEL=AUTO output gerber
+       JUSTIFY=CENTER
+       PIXMAP=
+       OR=H
+  }
+}
+textf job {
+  g {
+       X=0
+       Y=2985
+       W=1800
+       H=500
+       BW=1
+       BG=608585
+       READABLE=YES
+       EDITABLE=YES
+       LTYPE=L
+       FONT=cbr18
+       LABEL=job:
+       JUSTIFY=CENTER
+       PIXMAP=
+       OR=H
+  }
+  cb {
+       HELP=<Empty>
+       ACT=<Empty>
+  }
+  te {
+       FONT=cbr18
+       NUMROWS=1
+       NUMCOLS=0
+       TYPE=TEXT
+       MIN=0
+       MIN_DATE_TIME=
+       MAX=0
+       MAX_DATE_TIME=
+       TEXT_FORMAT=NONE
+       DATE_FORMAT=DD/MM/YY
+       TIME_FORMAT=HH:MM:SS
+  }
+}
+choice step {
+  g {
+       X=1800
+       Y=2985
+       W=1700
+       H=500
+       BW=1
+       BG=608585
+       READABLE=YES
+       EDITABLE=YES
+       LTYPE=L
+       FONT=cbr14
+       LABEL=step  :
+       JUSTIFY=CENTER
+       PIXMAP=
+       OR=H
+  }
+  cb {
+       HELP=<Empty>
+       ACT=step
+  }
+  ce {
+       LTYPE=l
+       MODE=M
+       OR=H
+       NUMCOLS=1
+     cec {
+       panel
+     }
+  }
+}
+choice mode {
+  g {
+       X=8
+       Y=2085
+       W=3500
+       H=900
+       BW=1
+       BG=608585
+       READABLE=YES
+       EDITABLE=YES
+       LTYPE=L
+       FONT=cbr18
+       LABEL=mode:
+       JUSTIFY=CENTER
+       PIXMAP=
+       OR=H
+  }
+  cb {
+       HELP=<Empty>
+       ACT=mode
+  }
+  ce {
+       LTYPE=l
+       MODE=R
+       OR=H
+       NUMCOLS=3
+     cec {
+       All
+       inner
+       outlayer
+       select
+       text
+     }
+  }
+}
+textf display {
+  g {
+       X=0
+       Y=1085
+       W=3500
+       H=1000
+       BW=1
+       BG=608585
+       READABLE=YES
+       EDITABLE=NO
+       LTYPE=L
+       FONT=cbr18
+       LABEL=output~layer~display:
+       JUSTIFY=CENTER
+       PIXMAP=
+       OR=H
+  }
+  cb {
+       HELP=<Empty>
+       ACT=<Empty>
+  }
+  te {
+       FONT=cbr18
+       NUMROWS=2
+       NUMCOLS=0
+       TYPE=TEXT
+       MIN=0
+       MIN_DATE_TIME=
+       MAX=0
+       MAX_DATE_TIME=
+       TEXT_FORMAT=NONE
+       DATE_FORMAT=DD/MM/YY
+       TIME_FORMAT=HH:MM:SS
+  }
+}
+button spath {
+  g {
+       X=0
+       Y=628
+       W=708
+       H=457
+       BW=0
+       BG=608585
+       READABLE=YES
+       EDITABLE=YES
+       LTYPE=L
+       FONT=cbr14
+       LABEL=OUTPUT~PATH:
+       JUSTIFY=CENTER
+       PIXMAP=
+       OR=H
+  }
+  cb {
+       HELP=<Empty>
+       ACT=sp
+  }
+}
+textf path {
+  g {
+       X=708
+       Y=628
+       W=2800
+       H=457
+       BW=1
+       BG=608585
+       READABLE=YES
+       EDITABLE=YES
+       LTYPE=L
+       FONT=cbr14
+       LABEL=
+       JUSTIFY=CENTER
+       PIXMAP=
+       OR=H
+  }
+  cb {
+       HELP=<Empty>
+       ACT=
+  }
+  te {
+       FONT=cbr14
+       NUMROWS=1
+       NUMCOLS=0
+       TYPE=TEXT
+       MIN=0
+       MIN_DATE_TIME=
+       MAX=0
+       MAX_DATE_TIME=
+       TEXT_FORMAT=NONE
+       DATE_FORMAT=DD/MM/YY
+       TIME_FORMAT=HH:MM:SS
+  }
+}
+button ok {
+  g {
+       X=0
+       Y=4
+       W=1100
+       H=624
+       BW=1
+       BG=608585
+       READABLE=YES
+       EDITABLE=YES
+       LTYPE=L
+       FONT=cbr18
+       LABEL=output
+       JUSTIFY=CENTER
+       PIXMAP=
+       OR=H
+  }
+  cb {
+       HELP=<Empty>
+       ACT=ok
+  }
+}
+button apply {
+  g {
+       X=1100
+       Y=4
+       W=1200
+       H=624
+       BW=1
+       BG=608585
+       READABLE=YES
+       EDITABLE=YES
+       LTYPE=L
+       FONT=cbr18
+       LABEL=set-map
+       JUSTIFY=CENTER
+       PIXMAP=
+       OR=H
+  }
+  cb {
+       HELP=<Empty>
+       ACT=set_map
+  }
+}
+button textoutput {
+  g {
+       X=2300
+       Y=4
+       W=1200
+       H=624
+       BW=1
+       BG=608585
+       READABLE=YES
+       EDITABLE=YES
+       LTYPE=L
+       FONT=cbr18
+       LABEL=text
+       JUSTIFY=CENTER
+       PIXMAP=
+       OR=H
+  }
+  cb {
+       HELP=<Empty>
+       ACT=exit
+  }
+}

@@ -1,0 +1,301 @@
+#!/usr/bin/env python26
+# -*- coding: utf-8 -*-
+# --------------------------------------------------------- #
+#                VTG.SH SOFTWARE GROUP                      #
+# --------------------------------------------------------- #
+# @Author       :    Chao.Song
+# @Mail         :
+# @Date         :    2022.08.30
+# @Revision     :    1.0.0
+# @File         :    close_job.pre(From display_layer.pre)
+# @Software     :    PyCharm
+# @Usefor       :    关闭料号，通过保存记录检查资料输出最新
+# --------------------------------------------------------- #
+# 20241114 zl 关闭料号检测是否有临时资料提示是否改为正式层
+import os
+import platform
+import sys
+import json
+import re
+from PyQt4 import QtCore, QtGui
+import datetime
+reload(sys)                      # reload 才能调用 setdefaultencoding 方法
+sys.setdefaultencoding('utf-8')  # 设置 'utf-8'
+# --导入Package
+# --加载相对位置，以实现InCAM与Genesis共用
+if platform.system() == "Windows":
+    sys.path.append(r"Z:/incam/genesis/sys/scripts/Package")
+else:
+    sys.path.append(r"/incam/server/site_data/scripts/Package")
+from messageBox import msgBox
+import genCOM_26 as genCOM
+import MySQL_DB
+import Oracle_DB
+import time
+
+GEN = genCOM.GEN_COM()
+import TOPCAM_IKM
+
+IKM = TOPCAM_IKM.IKM()
+
+
+class CloseJob(object):
+    def __init__(self):
+        hook_tmp_file = sys.argv[1]
+        self.hook_dict = self.get_parm_dict(hook_tmp_file)
+        # self.JOB = os.environ.get('JOB', None)
+        self.JOB = self.hook_dict['job']
+        # if platform.system() == "Windows":
+        #     self.logFile = '%s/fw/jobs/%s/user/save_log' % (os.environ.get('GENESIS_DIR'), self.JOB)
+        # else:
+        #     if os.path.normcase(os.environ.get('INCAM_SERVER', None)) == os.path.normcase('/incam/server'):
+        #         self.logFile = '/incam/incam_db1/jobs/%s/user/save_log' % self.JOB
+        #     elif os.path.normcase(os.environ.get('INCAM_SERVER', None)) == os.path.normcase('/incampro/server'):
+        #         self.logFile = '/incampro/incamp_db1/jobs/%s/user/save_log' % self.JOB
+        #     elif str(os.environ.get('GENESIS_VER', None)) == '100':
+        #         self.logFile = '/genesis/fw/jobs/%s/user/save_log' % self.JOB
+        #         print 'xxxxxxxx%s\n' % os.environ.get('GENESIS_VER',None)
+
+        PRODUCT = os.environ.get('INCAM_PRODUCT', None)
+        if platform.system() == "Windows":
+            self.userDir = "%s/fw/jobs/%s/user" % (os.environ.get('GENESIS_DIR', 'D:/genesis'), self.JOB)
+        else:
+            self.userDir = os.environ.get('JOB_USER_DIR', None)
+            if not PRODUCT and not self.userDir:
+                # --Linux环境下网络版genesis没有定义INCAM_PRODUCT环境变量
+                self.userDir = "%s/fw/jobs/%s/user" % (os.environ.get('GENESIS_DIR', '/genesis'), self.JOB)
+        self.logFile = '%s/save_log' % self.userDir
+        self.silk_names = ['c1', 'c2', 'cc1', 'cc2', 'c1-1', 'c1-2', 'c1-3', 'c2-1', 'c2-2', 'c2-3']
+        self.warn_mess_list = []
+        # print hook_dict
+
+    def get_parm_dict(self, hook_tmp_file):
+        """
+        解析hooks临时文件，生成dict
+        :param hook_tmp_file:
+        :return:
+        """
+        lineList = open(hook_tmp_file, 'r').readlines()
+        # os.unlink (self.tmpfile)
+        infoDict = GEN.parseInfo(lineList)
+        # print infoDict
+        hook_dict = {}
+        if len(infoDict['lnPARAM']) > 0 and len(infoDict['lnVAL']) > 0:
+            for i, inparm in enumerate(infoDict['lnPARAM']):
+                hook_dict[inparm] = infoDict['lnVAL'][i]
+        return hook_dict
+
+    def run(self):
+        print self.hook_dict
+        # {'job': 'ha2806gb085c1-song'}
+        # === TODO 测试阶段，先取前13码
+        cur_job = self.hook_dict['job'].split('-')[0].lower()
+        # === 劲鑫喷墨的输出完成时间
+        # === 可能料号名在TopCAM中不存在（临时料号名的情况）
+        try:
+            get_result = IKM.get_run_logs(36, 445, jobName=cur_job, logType="'Done'")
+            print get_result
+        except TypeError:
+            get_result = []
+        jinxin_time = 0
+        for line in get_result:
+            print line['日志记录时间']
+            a_time = line['日志记录时间']  # 类型datetime
+            get_time = a_time.strftime("%Y%m%d%H%M%S")
+            jinxin_time = max(int(jinxin_time), int(get_time))
+
+        # === ldi的输出时间 ===
+        ldi_record = Project(cur_job).get_ldi_output_log()
+
+        ldi_dict = Project(cur_job).redeal_ldi_log(ldi_record)
+        self.getLogContent()
+        # print json.dumps(self.logDict, indent=2)
+        for key in self.logDict:
+            # print key
+            if 'tuoman' in key:
+                continue
+            time_str = key.replace('-', '').replace('/', '').replace(':', '').replace(' ', '')
+            # print time_str
+            # print json.dumps(self.logDict[key], indent=2)
+            cur_dict = self.logDict[key]
+
+            if jinxin_time != 0:
+                if int(time_str) > jinxin_time:
+                    if 'Detail' in cur_dict:
+                        if 'Modified' in cur_dict['Detail']:
+                            for line in cur_dict['Detail']['Modified']:
+                                # print line
+                                # 第二种方法: 将列表转换为集合并且使用集合操作符得到两个集合的交集, 然后再转换为列表类型
+                                # list1 = [1, 2, 3, 4]
+                                # list2 = [2, 3, 4, 5]
+                                # &求解两个集合的交集
+                                res = list(set(line[1].split(',')) & set(self.silk_names))
+                                print(res)
+                                if len(res) > 0:
+                                    print 'step:%s layer:%s 有变更,需要重新输出劲鑫喷墨' % (line[0], ','.join(res))
+                                    self.warn_mess_list.append({
+                                                                   'text': '劲鑫输出时间：%s,step:%s layer:%s 有变更,变更时间：%s需要重新输出劲鑫喷墨' % (
+                                                                   jinxin_time, line[0], ','.join(res), time_str),
+                                                                   'warn_type': 'warning',
+                                                                   'title': '劲鑫喷墨检测'})
+            if ldi_dict:
+                for time_key in ldi_dict:
+                    if int(time_str) > int(time_key):
+                        if 'Detail' in cur_dict:
+                            if 'Modified' in cur_dict['Detail']:
+                                for line in cur_dict['Detail']['Modified']:
+                                    res = list(set(line[1].split(',')) & set(ldi_dict[time_key]))
+                                    if len(res) > 0:
+                                        print res,'xxx'
+                                        # print 'step:%s layer:%s 有变更,需要重新输出LDI资料' % (line[0], ','.join(res))
+                                        self.warn_mess_list.append({
+                                            'text': 'LDI输出时间:%s,STEP:%s  LAYER:%s 有变更,变更时间:%s 需要重新输出LDI资料' % (
+                                                time_key, line[0], ','.join(res), time_str),
+                                            'warn_type': 'warning',
+                                            'title': 'LDI输出检测'})
+
+        if len(self.warn_mess_list) > 0:
+            self.saveJsonInfo()
+            msg_box = msgBox()
+            msg_box.warning(None, '警告', '\n'.join([i['text'] for i in self.warn_mess_list]), QtGui.QMessageBox.Ok)
+
+        # 20241114
+        os.system('python /incam/server/site_data/scripts/sh_script/zltest/check/TempLayerCheck.py check_restore_normal')
+        # GEN.COM('skip_current_command')
+        # sys.exit(0)
+
+    def saveJsonInfo(self):
+        """
+        存储当前料号的用户目录下，用以直接加载参数用
+        :return:None
+        """
+        # print (json.dumps(self.warn_mess_list, sort_keys=True, indent=4, separators=(', ', ': '), ensure_ascii=False))
+        print self.warn_mess_list
+        with open(os.path.join(self.userDir, 'closejob.json'), 'w') as f:
+            # f.write(
+            #     json.dumps(self.warn_mess_list, sort_keys=True, indent=4, separators=(', ', ': '), ensure_ascii=False))
+            f.write(
+                json.dumps(self.warn_mess_list, sort_keys=True, indent=4, separators=(', ', ': '), ensure_ascii=False))
+
+    def getLogContent(self):
+        """
+        获取LOG日志内容
+        :return:
+        """
+        # --解读log文件中的所有日志内容
+        self.logDict = {}
+        # === 会存在日志文件不存在的情况，不进行关闭检测 ===
+        if os.path.exists(self.logFile):
+            f = open(self.logFile, 'r')
+            content = f.readlines()
+            f.close()
+        else:
+            return
+        # --循环所有log内容
+        lastKey = None
+        lastDetailKey = None
+        for loginfo in content:
+            # print loginfo
+            # --匹配每一次的修改标题
+            patternTitle = re.compile(r'########\s(.+)\s(.+)\s(.+)\s(.+)\s(.+)\s########', re.I)
+            m_Modifier = patternTitle.match(loginfo)
+            # --匹配成功
+            if m_Modifier:
+                lastKey = m_Modifier.group(4) + ' ' + m_Modifier.group(5)
+                # print 'lastkey:%s'%lastKey
+                if lastKey not in self.logDict.keys():
+                    self.logDict[lastKey] = {
+                        'Modifier': m_Modifier.group(1),  # --修改类型
+                        'jobName': m_Modifier.group(2),  # --型号名
+                        'modifyUser': m_Modifier.group(3),  # --修改用户名
+                        'modifyDate': m_Modifier.group(4),  # --修改日期
+                        'modifyTime': m_Modifier.group(5)  # --修改时间
+                    }
+
+            # --匹配每一次的修改内容
+            patternDetail = re.compile(r'(?:(.+)(?:\s+==>>)?)?\sSTEP -->\s(.+)\sLAYER -->\s(.+)', re.I)
+            m_Detail = patternDetail.match(loginfo)
+            # --匹配成功
+            if m_Detail:
+                # print loginfo
+                # --有匹配到第一个元素，且第一个元素不是以“ ”开头的
+                if m_Detail.group(1) and not m_Detail.group(1).startswith(" "):
+                    lastDetailKey = m_Detail.group(1).split(" ")[0]
+                    if 'Detail' not in self.logDict[lastKey].keys():
+                        self.logDict[lastKey]['Detail'] = {}
+                    if lastDetailKey not in self.logDict[lastKey]['Detail'].keys():
+                        self.logDict[lastKey]['Detail'][lastDetailKey] = []
+                    # self.logDict[lastKey]['Detail'][m_Detail.group(1)]['aaaaaa'] = m_Detail.group(2) + m_Detail.group(3)
+                # @formatter:off
+                self.logDict[lastKey]['Detail'][lastDetailKey].append([m_Detail.group(2), m_Detail.group(3)])
+                # @formatter:on
+
+
+class Project(object):
+    def __init__(self, job_name):
+        # --MySql,连接工程MySql数据库
+        self.DB_M = MySQL_DB.MySQL()
+        self.dbc_m = self.DB_M.MYSQL_CONNECT(hostName='192.168.2.19', database='engineering', prod=3306,
+                                             username='root', passwd='k06931!')
+
+        self.sql_job = job_name
+        # self.date_time = datetime.strftime(datetime.now(), "%Y-%m-%d %H:%M:%S")
+
+    def get_ldi_output_log(self):
+        sql_query = """
+        select job,layer,log_time,id from ldi_output_log a 
+        where job='%s' and log_time=(select max(log_time) from ldi_output_log b where b.job=a.job and a.layer=b.layer)
+        """ % self.sql_job
+        # [u'layer', u'creator', u'scalex', u'scaley', u'software_platform', u'job', u'mirror', u'log_time', u'id',
+        #  u'hash_layerinfo', u'app_version', u'localhost']
+
+        query_result = self.DB_M.SELECT_DIC(self.dbc_m, sql_query)
+        print query_result
+        return query_result
+
+    def redeal_ldi_log(self, ip_result):
+        ldi_dict = {}
+        for line in ip_result:
+            time_key = line['log_time'].strftime("%Y%m%d%H%M%S")
+            if time_key not in ldi_dict:
+                ldi_dict[time_key] = [line['layer']]
+            else:
+                ldi_dict[time_key].append(line['layer'])
+        return ldi_dict
+
+    def __del__(self):
+        '''
+        程序结束时关闭数据库连接
+        :return: None
+        '''
+        self.dbc_m.close()
+
+
+# === 主程序入口 ===
+if __name__ == "__main__":
+    app = QtGui.QApplication(sys.argv)
+    myapp = CloseJob()
+    sys.exit(myapp.run())
+
+"""
+重要变量结构示意
+self.logDict['2022/08/29 16:52:31']= {
+   "modifyUser": "44839",
+   "modifyDate": "2022/08/29",
+   "Detail": {
+     "Modified": [
+       [
+         "edit",
+         "c2,"
+       ],
+       [
+         "panel",
+         "b2-5, drl, l2, l3, l4, l5,"
+       ]
+     ]
+   },
+   "jobName": "ha2806gb085c1-song",
+   "modifyTime": "16:52:31",
+   "Modifier": "Modifier"
+ }
+"""

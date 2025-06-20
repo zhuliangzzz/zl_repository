@@ -1,0 +1,15 @@
+#
+#Feature symbol names
+#
+$0 r15
+
+#
+#Feature attribute names
+#
+@0 .nomenclature
+
+#
+#Layer features
+#
+T -0.00325443 -0.00100945 vgt_date P 0 0.04 0.06 0.50000 '$$ww$$yy' 1;0
+P 0.17713484 0.00513051 0 P 0 0

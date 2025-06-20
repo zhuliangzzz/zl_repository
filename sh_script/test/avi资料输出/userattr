@@ -1,0 +1,256 @@
+FORCE_LIB=YES
+
+TEXT {
+    NAME=1
+    PROMPT=1
+    MIN_LEN=0
+    MAX_LEN=100
+    ENTITY=LAYER
+    DEF=zuanzi 
+}
+
+TEXT {
+    NAME=surface
+    PROMPT=surface
+    MIN_LEN=0
+    MAX_LEN=64
+    ENTITY=FEATURE
+    DEF= 
+}
+
+TEXT {
+    NAME=min_pad
+    PROMPT=min_pad
+    MIN_LEN=0
+    MAX_LEN=64
+    ENTITY=FEATURE
+    DEF= 
+}
+
+TEXT {
+    NAME=dclayer
+    PROMPT=dclayer
+    MIN_LEN=0
+    MAX_LEN=64
+    ENTITY=JOB
+    DEF= 
+}
+
+TEXT {
+    NAME=zuanzi
+    PROMPT=zuanzi
+    MIN_LEN=0
+    MAX_LEN=64
+    ENTITY=LAYER;FEATURE
+    DEF= 
+}
+
+TEXT {
+    NAME=cup_w
+    PROMPT=copper_area_work
+    MIN_LEN=0
+    MAX_LEN=64
+    ENTITY=LAYER
+    DEF=0 
+}
+
+TEXT {
+    NAME=SS
+    PROMPT=SERIAL
+    MIN_LEN=0
+    MAX_LEN=10
+    ENTITY=ALL
+    DEF=SS
+}
+
+TEXT {
+    NAME=cup_o
+    PROMPT=copper_area_org
+    MIN_LEN=0
+    MAX_LEN=64
+    ENTITY=LAYER
+    DEF=0 
+}
+
+TEXT {
+    NAME=ijob
+    PROMPT=ijob
+    MIN_LEN=0
+    MAX_LEN=64
+    ENTITY=JOB
+    DEF=0 
+}
+
+TEXT {
+    NAME=jobn
+    PROMPT=jobn
+    MIN_LEN=0
+    MAX_LEN=64
+    ENTITY=JOB
+    DEF=0 
+}
+
+TEXT {
+    NAME=job_cut
+    PROMPT=job_cut
+    MIN_LEN=0
+    MAX_LEN=64
+    ENTITY=JOB
+    DEF=0 
+}
+
+TEXT {
+    NAME=xingqi
+    PROMPT=xingqi
+    MIN_LEN=0
+    MAX_LEN=64
+    ENTITY=JOB
+    DEF=0 
+}
+
+TEXT {
+    NAME=year
+    PROMPT=year
+    MIN_LEN=0
+    MAX_LEN=64
+    ENTITY=JOB
+    DEF=0 
+}
+
+TEXT {
+    NAME=month
+    PROMPT=month
+    MIN_LEN=0
+    MAX_LEN=64
+    ENTITY=JOB
+    DEF=0 
+}
+
+TEXT {
+    NAME=day
+    PROMPT=day
+    MIN_LEN=0
+    MAX_LEN=64
+    ENTITY=JOB
+    DEF=0 
+}
+
+TEXT {
+    NAME=banci
+    PROMPT=banci
+    MIN_LEN=0
+    MAX_LEN=64
+    ENTITY=JOB
+    DEF=0 
+}
+
+TEXT {
+    NAME=picihao
+    PROMPT=picihao
+    MIN_LEN=0
+    MAX_LEN=64
+    ENTITY=JOB
+    DEF=0 
+}
+
+TEXT {
+    NAME=pcs_areas
+    PROMPT=pcs_areas
+    MIN_LEN=0
+    MAX_LEN=64
+    ENTITY=JOB
+    DEF=0 
+}
+
+TEXT {
+    NAME=o_area
+    PROMPT=expose_area
+    MIN_LEN=0
+    MAX_LEN=64
+    ENTITY=LAYER
+    DEF=0 
+}
+
+INTEGER {
+    NAME=ID
+    PROMPT=PRINTER MARK ID
+    MIN_VAL=0
+    MAX_VAL=1000
+    ENTITY=FEATURE
+    DEF=0
+}
+
+
+#  add by song for Top CAM 20191211
+TEXT {
+    NAME=TL_IMP_STRING
+    PROMPT=TL_IMP_STRING
+    MIN_LEN=0
+    MAX_LEN=1000
+    ENTITY=FEATURE
+    DEF=
+}
+
+TEXT {
+    NAME=imp_lw_ref_info
+    PROMPT=imp_lw_ref_info
+    MIN_LEN=0
+    MAX_LEN=1000
+    ENTITY=FEATURE
+    DEF=
+}
+
+TEXT {
+    NAME=TL_STRING
+    PROMPT=TL_STRING
+    MIN_LEN=0
+    MAX_LEN=1000
+    ENTITY=FEATURE
+    DEF=
+}
+
+TEXT {
+    NAME=TL_REF_SEL
+    PROMPT=TL_REF_SEL
+    MIN_LEN=0
+    MAX_LEN=100
+    ENTITY=FEATURE
+    DEF=
+}
+
+TEXT {
+    NAME=TL_ALONE_PAD
+    PROMPT=ALONE_LINE
+    MIN_LEN=0
+    MAX_LEN=100
+    ENTITY=FEATURE
+    DEF=
+}
+
+TEXT {
+    NAME=TL_ALONE_LINE
+    PROMPT=TL_ALONE_LINE
+    MIN_LEN=0
+    MAX_LEN=100
+    ENTITY=FEATURE
+    DEF=
+}
+TEXT {
+    NAME=Silk_Surface_Persent
+    PROMPT=Silk_Surface_Persent
+    MIN_LEN=0
+    MAX_LEN=64
+    ENTITY=LAYER
+    DEF=-1 
+}
+
+TEXT {
+    NAME=date_format
+    PROMPT=Week Date Format
+    MIN_LEN=0
+    MAX_LEN=64
+    ENTITY=FEATURE
+    DEF= 
+}
+
+

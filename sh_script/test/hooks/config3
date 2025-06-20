@@ -1,0 +1,6 @@
+gen_week_number_format=5 none
+gen_week_start_day=1 none
+gen_year_number_format=1 none
+multicolor_default_set_name="chain_per_num" none
+net_compare_ignore_inner_net_points=yes none
+show_material_part_in_steps_list=yes none

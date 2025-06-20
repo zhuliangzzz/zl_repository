@@ -1,0 +1,222 @@
+#! /bin/csh
+#################################################
+#scripts:test by chris
+#author: chris
+#date:2015.08.18
+#purpose:
+#################################################
+# The 'set_table' script recieves as input 2 parameters : 
+#
+#  1. csh script path : the script contains the NC-table and
+#     some other parameters as described bellow
+#  2. out_file : output file that contains several parameters per
+#     drill entry
+#
+# Input 'csh' script example :
+# ============================
+#set ncLAYER = (01-drl )
+#set ncSET   = (set-exc)
+#set ncMACHINE = (m1 )
+#set ncTHICKNESS = (0 )
+#set ncSHAPE        = (slot  hole  hole  hole  hole )
+#set ncTYPE         = (PLATE PLATE PLATE PLATE PLATE)
+#set ncSIZE         = (10    16    20    30    32   )
+#set ncTOUCH_COPPER = (no    no    no    no    no   )
+#set ncFLAG         = (0     0     3     0     5   ) 
+#set ncCOUNT        = (10    39735 15    5     40   ) 
+#set ncPLUS_TOL     = (0     0     0     0     0    ) 
+#set ncMINUS_TOL    = (0     0     0     0     0    )
+#set ncDESIGNATOR   = (""    ""    ""    ""    ""   ) 
+#
+# Output file structure :
+# =======================
+#
+# The output file should contain a line of parameters per
+# each input line. In addition, pilot drill entries can
+# be added by this script.
+#
+# Each line must contain the following values :
+#
+#  1. Original index in array (starting with 1)
+#  2. tool_size (mils)
+#  3. pilot indicator (y/n)
+#  4. mode - (regular, nibble, rout)
+#  5. speed - spindle speed
+#  6. feed_rate 
+#  7. nibble_type (machine, sw)
+#  8. stage - drill stage (1,2,3)
+#  9. rout_mode (sep, same)
+# 10. maximal number of hits per bit
+# 11. designator - (if empty - .none)
+# 12. pilot nibble diameter (the tool size is not enough ...)
+# 13.     Predefined fix tool order (0,1,2,...) 0 - undefined
+# 14.     Predefined fix tool number (0,1,2,...) 0 - undefined
+# 15.     Cool spread value:
+
+
+set source_script = $1
+set out_file      = $2
+
+source $source_script
+
+set file_path = "/tmp"
+if ( -e $file_path/save_info ) then
+	mv $file_path/save_info $file_path/save_info1
+endif
+#从第四部分得到最后一把刀的大小.
+if ( -e $file_path/slot_tail_ok ) then 
+	set tmp_list = ()
+	set tmp = ` cat $file_path/slot_tail_ok | sort -n `
+	set tmp_list = ($tmp_list $tmp)
+	set drill_size_max = $tmp_list[$#tmp_list]
+else
+	#没有第四部分则从1000开始计算.
+	set drill_size_max = 2000
+endif 
+
+if ( -e $file_path/slot_tail5 ) then 
+	set drill_size5 = ` echo $drill_size_max | awk '{print $1+2100}' `
+endif
+
+if ( -e $file_path/slot_tail6 ) then 
+	set drill_size6 = ` echo $drill_size_max | awk '{print $1+2200}' `
+endif
+
+if ( -e $file_path/slot_tail7 ) then 
+	set drill_size7 = ` echo $drill_size_max | awk '{print $1+2300}' `
+endif
+	
+if ( -e $file_path/slot_tail8 ) then 
+	set drill_size8 = ` echo $drill_size_max | awk '{print $1+2400}' `
+endif
+
+set i = 1
+while ($i <= $#ncSHAPE)
+	set nc_size = $ncSIZE[$i]
+	
+	########################################################
+	if ($ncSHAPE[$i] == slot) then
+		set result = ` echo $nc_size | awk '{print $1 * 25.4}' `
+		if ( $result =~ *.* ) then 
+			set result_left = ` echo $result | cut -d "." -f1 `
+			set result_right = ` echo $result | cut -d "." -f2 `
+			set result_right1 = ` echo $result_right | cut -c1 `
+			if ( $result_right1 == 9 ) then
+				set result = ` echo $result_left | awk '{print $1 + 1}' `
+			endif
+			if ( $result_right1 == 0 ) then
+				set result = $result_left
+			endif
+		endif
+		#substitue the T.
+		set tmp_size = ` echo $result |awk '{print $1 * 0.001}' `
+		set tmp_right = ` echo $tmp_size | cut -d "." -f2 `
+		set tmp_three = ` echo $tmp_right | cut -c3 `
+		if ( $tmp_three == 5 ) then
+			if ( -e $file_path/slot_tail5 ) then 
+				set tmp_list = ()
+				set tmp = ` cat $file_path/slot_tail5 | sort -n `
+				set tmp_list = ($tmp_list $tmp)
+				set r = 1 
+				while ( $r <= $#tmp_list)
+					if ( $result == $tmp_list[$r] ) then
+						set increase = $r
+						set tmp_drill_size5 = ` echo $drill_size5 $increase | awk '{print $1+$2}' `
+						echo "$tmp_drill_size5=$result" >> $file_path/save_info
+						#改变钻孔的大小.
+						set tmp_drill_size5 = ` echo $tmp_drill_size5 | awk '{print $1 / 25.4}' `
+						set ncSIZE[$i] = $tmp_drill_size5
+					endif
+				@ r++
+				end
+			endif
+		endif
+		
+		if ( $tmp_three == 6 ) then
+			if ( -e $file_path/slot_tail6 ) then 
+				set tmp_list = ()
+				set tmp = ` cat $file_path/slot_tail6 | sort -n `
+				set tmp_list = ($tmp_list $tmp)
+				set r = 1 
+				while ( $r <= $#tmp_list)
+					if ( $result == $tmp_list[$r] ) then
+						set increase = $r
+						set tmp_drill_size6 = ` echo $drill_size6 $increase | awk '{print $1+$2}' `
+						echo "$tmp_drill_size6=$result" >> $file_path/save_info
+						#改变钻孔的大小.
+						set tmp_drill_size6 = ` echo $tmp_drill_size6 | awk '{print $1 / 25.4}' `
+						set ncSIZE[$i] = $tmp_drill_size6
+					endif
+				@ r++
+				end
+			endif
+		endif
+		
+		if ( $tmp_three == 7 ) then
+			if ( -e $file_path/slot_tail7 ) then 
+				set tmp_list = ()
+				set tmp = ` cat $file_path/slot_tail7 | sort -n `
+				set tmp_list = ($tmp_list $tmp)
+				set r = 1 
+				while ( $r <= $#tmp_list)
+					if ( $result == $tmp_list[$r] ) then
+						set increase = $r
+						set tmp_drill_size7 = ` echo $drill_size7 $increase | awk '{print $1+$2}' `
+						echo "$tmp_drill_size7=$result" >> $file_path/save_info
+						#改变钻孔的大小.
+						set tmp_drill_size7 = ` echo $tmp_drill_size7 | awk '{print $1 / 25.4}' `
+						set ncSIZE[$i] = $tmp_drill_size7
+					endif
+				@ r++
+				end
+			endif
+		endif
+		
+		if ( $tmp_three == 8 ) then
+			if ( -e $file_path/slot_tail8 ) then 
+				set tmp_list = ()
+				set tmp = ` cat $file_path/slot_tail8 | sort -n `
+				set tmp_list = ($tmp_list $tmp)
+				set r = 1 
+				while ( $r <= $#tmp_list)
+					if ( $result == $tmp_list[$r] ) then
+						set increase = $r
+						set tmp_drill_size8 = ` echo $drill_size8 $increase | awk '{print $1+$2}' `
+						echo "$tmp_drill_size8=$result" >> $file_path/save_info
+						#改变钻孔的大小.
+						set tmp_drill_size8 = ` echo $tmp_drill_size8 | awk '{print $1 / 25.4}' `
+						set ncSIZE[$i] = $tmp_drill_size8
+					endif
+				@ r++
+				end
+			endif
+		endif
+	endif
+	
+	########################################################
+	
+	set do_nibble = `echo "$nc_size * 1000 / 1"| bc`
+	
+	#set do_nibble = `echo "if ($nc_size > 256) 1" | bc -l`
+	if ($do_nibble > 250000) then             
+		set mode        = nibble
+		set nibble_type = machine
+	else
+		set mode          = regular
+		set nibble_type   = machine             
+	endif
+	
+	
+	if ($ncSHAPE[$i] == hole) then
+		if ($ncFLAG[$i] == "1" ) then 
+			echo $i $ncSIZE[$i] n $mode 300 85 machine 1 sep 500 $i 0 0 0 120 >> $out_file
+		else
+			echo $i $ncSIZE[$i] n $mode 300 85 machine 1 sep 500 $i >> $out_file
+		endif
+	else
+		echo $i $ncSIZE[$i] n $mode 300 85 machine 2 sep 500 $i >> $out_file
+	endif  
+	@ i ++
+end
+
+

@@ -1,0 +1,59 @@
+#!/bin/csh
+#########
+set userv = `uname -s`
+echo $userv
+if ("$userv" == "SunOS") then
+alias awk nawk
+else if ("$userv" == "Linux") then
+alias awk gawk
+else
+alias awk awk95
+endif
+####define  genesis path
+mv d:/output d:/output1
+###################################ÐÇ¿ÕÎÞÏÞ
+set liu = 1
+set cai = 2
+set lin = `echo "scale=0;$liu + $cai"|bc`
+echo "$liu $cai $lin"
+COM read_form,job=$JOB,form=sl_opgerber,elem=path
+set pathxx = "$COMANS"
+#########################################
+set gui_path = ()
+if ("$userv" == "SunOS") then
+  set gui_path = /genesis/e90/all/gui
+  set scp_path = /genesis/sys/scripts
+  set gui_inpath = /tmp/gui_in.$$
+  set gui_outpath = /tmp/gui_out.$$
+else if ("$userv" == "Linux") then
+ set gui_path = /genesis/e90/all/gui
+ set scp_path = /genesis/sys/scripts
+ set gui_inpath = /tmp/gui_in.$$
+ set gui_outpath = /tmp/gui_out.$$
+else
+set disk = (c d e f g h)
+  foreach disk($disk)
+   if (-e ${disk}:/genesis) then
+       set pan = $disk
+       set scp_path = ${disk}:/genesis/sys/scripts
+       set gui_inpath = ${disk}:/tmp/gui_in.$$
+       set gui_outpath = ${disk}:/tmp/gui_out.$$
+       if (-e ${disk}:/genesis/e90/all/gui.exe) then
+        set gui_path = "${disk}:/genesis/e90/all/gui"
+       else if(-e ${disk}:/genesis/e91/all/gui.exe) then
+        set gui_path = "${disk}:/genesis/e90/all/gui"
+       else if(-e ${disk}:/genesis/e92/all/gui.exe) then
+        set gui_path = "${disk}:/genesis/e92/all/gui"
+       endif
+    endif
+  end 
+endif
+
+#########################################
+set jjb = \$JOB
+sed -n "1,125p" "d:/genesis/sys/scripts/used/outputgerber" > "d:/genesis/sys/scripts/used/outputgerber.new"
+echo "COM edit_form,job=$jjb,form=sl_opgerber,elem=path,value=$pathxx,opt_name=yes,callback=yes" >> "d:/genesis/sys/scripts/used/outputgerber.new"
+echo "echo dd" >> "d:/genesis/sys/scripts/used/outputgerber.new"
+rm -rf "d:/genesis/sys/scripts/used/outputgerber"
+mv "d:/genesis/sys/scripts/used/outputgerber.new" "d:/genesis/sys/scripts/used/outputgerber"
+echo "dd"

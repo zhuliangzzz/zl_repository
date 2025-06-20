@@ -1,0 +1,11 @@
+#
+#Feature symbol names
+#
+$0 r3.937
+$1 r242.22
+
+#
+#Layer features
+#
+P 0 0 1 N 43 0
+A 0.09540551 0 0.09540551 0 0 0 0 P 0 Y

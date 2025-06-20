@@ -1,0 +1,100 @@
+#! /bin/csh
+
+
+source $1
+#cat $1
+#set lnPARAM = ('type'                'source_job'          'source_name'         'dest_job'            'dest_name'           'dest_database'       'remove_from_sr'      )
+#set lnVAL   = ('job'                 'h50204gn497a1-neo'   'h50204gn497a1-neo'   'h50204gn497a1-neo-t' 'h50204gn497a1-neo-t' 'linux1'              'yes'                 )
+
+
+set LineType = $lnVAL[1]
+if ( $LineType == 'job' ) then
+	set CheckJob = $lnVAL[5]
+
+	COM get_user_name
+	set IncamUser = $COMANS
+	set DateTime = `date "+%Y-%m-%d %H:%M:%S"`
+	set HostName = `hostname`
+	#
+	set LogsPath = "$INCAM_SITE_DATA_DIR/scripts/Logs"
+	set FixLogsPath = "$LogsPath/Fix"
+
+	###### 记录 复制job
+	echo "$DateTime	$IncamUser	$HostName	|	$lnVAL[3]	=>	$lnVAL[5]" >> $LogsPath/job_copy.log
+
+	#DO_INFO -t job -e $CheckJob -d EXISTS
+	#set gJobExists = $gEXISTS
+
+	#增加自动修复料号文件夹job name不正确问题 18.4.8 by Neo
+	set DbutilPath = "$INCAM_PRODUCT/bin/dbutil"
+
+	set tJobPath = `$DbutilPath path jobs $CheckJob`
+	if ("$tJobPath" != "" ) then
+		set gJobExists = "yes"
+	else
+		set gJobExists = "no"
+	endif
+
+
+	set JobNameFixNotes = ()
+	if ( $gJobExists == 'yes' ) then
+		set JobPath = `$DbutilPath path jobs $CheckJob`
+	else
+		set JobPath = "/incampro/incamp_db1/jobs/$CheckJob"
+	endif
+	#
+	if ("$JobPath" != "" ) then
+		set JobMiscPath = "$JobPath/misc"
+		if ( -e "$JobMiscPath" ) then
+			#
+			set JobNamePath = "$JobMiscPath/job_name"
+			if ( -e "$JobNamePath" ) then
+				set tFileJob = `cat $JobNamePath`
+				if ( "$tFileJob" != "$CheckJob" ) then
+					echo $CheckJob > $JobNamePath
+					set JobNameFixNotes = ($JobNameFixNotes "job_name")
+				endif
+			endif
+			#
+			set JobInfoPath = "$JobMiscPath/info"
+			if ( -e "$JobInfoPath" ) then
+				set tFileJob = `cat $JobInfoPath | grep 'JOB_NAME=' | awk -F'=' '{print $2}'`
+				if ( "$tFileJob" != "$CheckJob" ) then
+					sed -i "s/\(JOB_NAME=\).*/\1$CheckJob/" "$JobInfoPath"
+					set JobNameFixNotes = ($JobNameFixNotes "info")
+				endif
+			endif
+			#
+		endif
+	endif
+	if ( $#JobNameFixNotes != 0 ) then
+		set FixJobNameLogsFile = "$FixLogsPath/FixJobName/copy_entity.post.log"
+		echo "$DateTime	|	$CheckJob	$IncamUser	$HostName  |  $gJobExists $JobNameFixNotes" >> $FixJobNameLogsFile
+	endif
+	###
+
+	#增加自动修复joblist 18.4.8 by Neo   #post 检查joblist
+	if ( $gJobExists == 'no' ) then
+		set FixLogsFile = "$FixLogsPath/copy_entity.log"
+
+		set DbutilPath = "$INCAM_PRODUCT/bin/dbutil"
+		echo "post	$CheckJob	$DateTime	$IncamUser	$HostName" >> $FixLogsFile
+		#
+		set tFile = "/tmp/tFile$$.log"
+		$DbutilPath check y >& $tFile
+		cat $tFile | grep -v 'Checking' | grep -v 'lock' | grep -v 'Lock' >> $FixLogsFile
+		\rm -rf $tFile
+		#
+
+		echo "" >> $FixLogsFile
+	endif
+else if ( $LineType == 'step' ) then
+	# 2023.02.25 增加复制料号目标为edit时，锁定原稿step
+	set CheckJob = $lnVAL[4]
+	set dest_name = $lnVAL[5]
+	
+	python /incam/server/site_data/scripts/hdi_scr/Tools/job_lock/copy_entity_lock_20230829.py $1
+endif
+
+
+

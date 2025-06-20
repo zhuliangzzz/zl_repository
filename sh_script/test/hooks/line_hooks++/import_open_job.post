@@ -1,0 +1,105 @@
+#! /bin/csh
+
+source $1
+
+#cat $1
+#COM import_open_job,db=linux1,path=/id/workfile/Neo/UserTgz/h52508gbe91a1-neo.tgz,name=h52508gbe91a1-neo,analyze_surfaces=no,keep_nls=no
+#set lnPARAM = ('db'     'path'                                           'name'               'analyze_surfaces'  'upgrade_format'  'create_customer'  'keep_nls'  'checkin' )
+#set lnVAL   = ('linux1' '/id/workfile/Neo/UserTgz/h52508gbe91a1-neo.tgz' 'h52508gbe91a1-neo'  'no'                'yes'             'no'               'no'        'no'      )
+set CheckJob = $lnVAL[3]
+
+COM get_user_name
+set IncamUser = $COMANS
+set DateTime = `date "+%Y-%m-%d %H:%M:%S"`
+set HostName = `hostname`
+#
+set LogsPath = "$INCAM_SITE_DATA_DIR/scripts/Logs"
+
+###### 记录 导入 tgz
+echo "$DateTime	$IncamUser	$HostName	|	$CheckJob" >> $LogsPath/job_import_open.log
+
+
+#DO_INFO -t job -e $CheckJob -d EXISTS
+#set gJobExists = $gEXISTS
+
+
+#增加自动修复料号文件夹job name不正确问题 18.4.8 by Neo
+set DbutilPath = "$INCAM_PRODUCT/bin/dbutil"
+
+set tJobPath = `$DbutilPath path jobs $CheckJob`
+if ("$tJobPath" != "" ) then
+	set gJobExists = "yes"
+else
+	set gJobExists = "no"
+endif
+
+
+set JobNameFixNotes = ()
+if ( $gJobExists == 'yes' ) then
+	set JobPath = `$DbutilPath path jobs $CheckJob`
+else
+	set JobPath = "/incam/incam_db1/jobs/$CheckJob"
+endif
+#
+if ("$JobPath" != "" ) then
+	set JobMiscPath = "$JobPath/misc"
+	if ( -e "$JobMiscPath" ) then
+		#
+		set JobNamePath = "$JobMiscPath/job_name"
+		if ( -e "$JobNamePath" ) then
+			set tFileJob = `cat $JobNamePath`
+			if ( "$tFileJob" != "$CheckJob" ) then
+				echo $CheckJob > $JobNamePath
+				set JobNameFixNotes = ($JobNameFixNotes "job_name")
+			endif
+		endif
+		#
+		set JobInfoPath = "$JobMiscPath/info"
+		if ( -e "$JobInfoPath" ) then
+			set tFileJob = `cat $JobInfoPath | grep 'JOB_NAME=' | awk -F'=' '{print $2}'`
+			if ( "$tFileJob" != "$CheckJob" ) then
+				sed -i "s/\(JOB_NAME=\).*/\1$CheckJob/" "$JobInfoPath"
+				set JobNameFixNotes = ($JobNameFixNotes "info")
+			endif
+		endif
+		#
+	endif
+endif
+
+set FixLogsPath = "$INCAM_SITE_DATA_DIR/scripts/Logs/Fix"
+if ( $#JobNameFixNotes != 0 ) then
+	set FixJobNameLogsFile = "$FixLogsPath/FixJobName/import_open_job.post.log"
+	echo "$DateTime	|	$CheckJob	$IncamUser	$HostName  |  $gJobExists $JobNameFixNotes" >> $FixJobNameLogsFile
+endif
+###
+
+#增加自动修复joblist 18.4.8 by Neo   #post 检查joblist
+if ( $gJobExists == 'no' ) then
+	set FixLogsFile = "$FixLogsPath/import_open_job.log"
+
+	set DbutilPath = "$INCAM_PRODUCT/bin/dbutil"
+	echo "post	$CheckJob	$DateTime	$IncamUser	$HostName" >> $FixLogsFile
+	#
+	set tFile = "/tmp/tFile$$.log"
+	$DbutilPath check y >& $tFile
+	cat $tFile | grep -v 'Checking' | grep -v 'lock' | grep -v 'Lock' >> $FixLogsFile
+	\rm -rf $tFile
+	#
+
+	echo "" >> $FixLogsFile
+endif
+
+
+# === 增加打开料号的内层审核状态的锁定 ===
+python /incam/server/site_data/scripts/hdi_scr/Tools/job_lock/open_job_lock_20230829.py $CheckJob
+
+# 增加打开料号的输出资料权限解锁设定 20221226 by lyh
+python /incam/server/site_data/scripts/sh_script/lock_job_forbid_output/unlock_job_for_output.py $CheckJob
+
+#更新料号属性 20230213 by lyh
+python /incam/server/site_data/scripts/hdi_scr/Tools/get_job_attr/get_job_attr.py $CheckJob
+
+
+#显示客户系列和单个料号特殊做法的记录 20230310 by lyh
+python /incam/server/site_data/scripts/sh_script/record_job_customer_spec/show_job_customer_spec.py $CheckJob
+

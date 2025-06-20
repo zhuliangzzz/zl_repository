@@ -1,0 +1,15 @@
+#
+#Feature symbol names
+#
+$0 r30
+$1 r400
+$2 r420
+$3 r430
+
+#
+#Layer features
+#
+P 0 0 3 N 43 0
+P 0 0 2 P 54 0
+P 0 0 1 N 59 0
+P 0 0 0 P 60 0

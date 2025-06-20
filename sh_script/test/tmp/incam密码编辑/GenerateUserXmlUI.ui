@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1190</width>
+    <height>702</height>
+   </rect>
+  </property>
+  <property name="font">
+   <font>
+    <family>微软雅黑</family>
+    <pointsize>9</pointsize>
+   </font>
+  </property>
+  <property name="windowTitle">
+   <string>Incam用户更新程序</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QHBoxLayout" name="horizontalLayout_3">
+    <item>
+     <widget class="QSplitter" name="splitter">
+      <property name="orientation">
+       <enum>Qt::Horizontal</enum>
+      </property>
+      <property name="opaqueResize">
+       <bool>false</bool>
+      </property>
+      <property name="childrenCollapsible">
+       <bool>false</bool>
+      </property>
+      <widget class="QGroupBox" name="groupBox">
+       <property name="title">
+        <string>当前incam用户信息</string>
+       </property>
+       <layout class="QHBoxLayout" name="horizontalLayout">
+        <item>
+         <widget class="QTableWidget" name="tableWidget"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QGroupBox" name="groupBox_2">
+       <property name="title">
+        <string>待更新用户信息</string>
+       </property>
+       <property name="checkable">
+        <bool>false</bool>
+       </property>
+       <layout class="QHBoxLayout" name="horizontalLayout_2">
+        <item>
+         <widget class="QTableWidget" name="tableWidget_2"/>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1190</width>
+     <height>23</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>微软雅黑</family>
+     <pointsize>9</pointsize>
+     <weight>50</weight>
+     <bold>false</bold>
+    </font>
+   </property>
+   <widget class="QMenu" name="menu">
+    <property name="font">
+     <font>
+      <pointsize>9</pointsize>
+     </font>
+    </property>
+    <property name="cursor">
+     <cursorShape>PointingHandCursor</cursorShape>
+    </property>
+    <property name="title">
+     <string>菜单</string>
+    </property>
+    <addaction name="actionLoadUserXml"/>
+    <addaction name="separator"/>
+    <addaction name="actionImportXlsx"/>
+    <addaction name="separator"/>
+    <addaction name="actionAddUser"/>
+    <addaction name="separator"/>
+    <addaction name="actionUpdateUser"/>
+    <addaction name="separator"/>
+    <addaction name="actionExportXml"/>
+    <addaction name="separator"/>
+    <addaction name="actionResetData"/>
+   </widget>
+   <addaction name="menu"/>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <action name="actionLoadUserXml">
+   <property name="text">
+    <string>打开UserXml</string>
+   </property>
+  </action>
+  <action name="actionImportXlsx">
+   <property name="text">
+    <string>导入待更新xlsx</string>
+   </property>
+  </action>
+  <action name="actionUpdateUser">
+   <property name="text">
+    <string>更新用户</string>
+   </property>
+  </action>
+  <action name="actionExportXml">
+   <property name="text">
+    <string>导出xml</string>
+   </property>
+  </action>
+  <action name="actionAddUser">
+   <property name="text">
+    <string>添加用户</string>
+   </property>
+  </action>
+  <action name="actionResetData">
+   <property name="text">
+    <string>重置数据</string>
+   </property>
+  </action>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

@@ -1,0 +1,1465 @@
+#!/usr/bin/perl -w
+
+#################################################
+#脚本名称:add_test.pre
+#作者: Ares.He
+#日期:2019.12.13 -->重构日期:2020-9-24
+#目的:智能添加文字防呆系统(symbol)
+# 防焊http://192.168.2.120:82/zentao/story-view-4109.html
+#环境:Incam环境
+# 2022.07.21 Song 奥宝类型添加时，增加字体属性检测，避免漏加.deferred属性
+# 更新Package中的genBasic.pm 增加二维码类型Featurs文件识别 http://192.168.2.120:82/zentao/story-view-4299.html
+# 2022.08.29 Song 动态字不允许更改字符间距，避免Genesis下不识别 http://192.168.2.120:82/zentao/story-view-4569.html
+#奥宝类型字体，不允许添加动态字
+#################################################
+
+use strict;
+use warnings;
+use Data::Dumper;
+use encoding 'euc_cn';
+
+#use lib $ENV{CAMLIB} = "$ENV{GENESIS_DIR}/e$ENV{GENESIS_VER}/all/perl";
+use lib "$ENV{SCRIPTS_DIR}/sys/scripts/Package";
+use mainVgt;
+use Genesis;
+
+my $p = new mainVgt();
+my $f = new Genesis();
+my $JOB  = $ENV{JOB};
+my $STEP = $ENV{STEP};
+
+unless (defined $STEP) {
+	#$f->COM("skip_current_command");
+	#$f->PAUSE ("No step information can be obtained,Please continue to add");
+	$p->Messages('warning', "无法获取STEP信息，添加请自行检查(信息来源hooks文件--add_text.pre)!");
+	exit;
+}
+
+#print Dumper(\%ENV);
+
+# -->获取$1文件
+my $readFile = shift || $ARGV[0] ;
+#genesis set lnPARAM = ('attributes'  'x'  'y'  'symbol'  'polarity'  'angle'  'mirror'  'nx'  'ny'  'dx'  'dy'  'xscale'  'yscale')
+#genesis set lnVAL   = ('no'		  '1'  '1'  'h173ul'  'positive'  '0'      'no'      '1'   '1'   '0'   '0'   '0.2'     '0.2')
+#Incam  set lnPARAM = ('symbol'     'polarity'   'attributes' 'x'          'y'          'mirror'     'angle'      'direction'  'nx'         'ny'         'dx'         'dy'         'resize'     'xscale'     'yscale'     )
+#Incam  set lnVAL   = ('s088ul'     'positive'   'no'         '-1.293652'  '3.355877'   'no'         '0'          'ccw'        '1'          '1'          '0'          '0'          '0'          '1'          '1'          )
+###2022/1/26吕康侠更改 318系列添加周期必须用vgt_data_318字体，其他的料号不能加
+my (@lnParam,@lnVal);
+open (PARAM_FILE,  "$readFile") or warn "Cannot open info file -$readFile: $!\n";
+while ( <PARAM_FILE> ) {
+	chomp($_);
+	if ( $_ =~ /set\s+(\S+)/ ){
+		my ($var,$value) = /set\s+(\S+)\s*=\s*(.*)\s*/;
+		my @words;
+		$value =~ s/^\s*|\s*$//g;
+		if ($value =~ /^\(/ ) {
+			$value =~ s/^\(|\)$//g;
+			@words = &iShellWords($value);
+		} else {
+			$value =~ s/^'|'$//g;
+			@words = ($value);
+		}
+		if ( $var eq 'lnPARAM' ) {
+			@lnParam = @words;
+		} elsif ( $var eq 'lnVAL' ) {
+			@lnVal = @words;
+		}
+	}
+}
+close (PARAM_FILE);
+print $#lnParam;
+my %lnParaDic;
+for (my $i=0;$i<=$#lnParam;$i++){$lnParaDic{$lnParam[$i]}=$lnVal[$i]}
+
+print Dumper(\%lnParaDic);
+
+#exit();
+# 检查二维码字符变量中间是否存在其它字符
+if ($lnParaDic{'bar_type'} =~ 'ecc-200'){
+	if($lnParaDic{'text'} =~ /\$\$WW\S+\$\$YY|\$\$WW\S+\s+\$\$YY|\$\$WW\s+\S+\$\$YY/ || 
+			$lnParaDic{'text'} =~ /\$\$YY\S+\$\$WW|\$\$YY\S+\s+\$\$WW|\$\$YY\s+\S+\$\$WW/){
+		$f->COM("skip_current_command");
+		$p->Messages('warning', "变量中间添加字符要留空, 请注意");
+		exit;
+	}
+}
+
+# 20241012 zl 单独$$YY或$$WW提示不让添加
+if($lnParaDic{'text'} =~ '^\$\$WW$|^\$\$YY$'){
+	$f->COM("skip_current_command");
+	$p->Messages('warning', "不允许单独添加\$\$YY或者\$\$WW");
+	exit;
+}
+
+if($JOB=~/^[a-z]318/){
+	if (($lnParaDic{'text'}=~/(yy|ww|dd)/i) && $lnParaDic{'fontname'} ne 'vgt_date_318'){
+		$f->COM("skip_current_command");
+		$p->Messages('warning', "318系列添加周期只能用vgt_data_318 字体 请注意");
+		exit;
+	}
+}else{
+	if (($lnParaDic{'text'}=~/(yy|ww)/i) && $lnParaDic{'fontname'} eq 'vgt_date_318'){
+		$f->COM("skip_current_command");
+		$p->Messages('warning', "非318系列添加周期不能用vgt_data_318 字体 请注意!!");
+		exit;
+	}
+}
+if (($lnParaDic{'text'}=~/(\$\$yy|\$\$ww|\$\$YY|\$\$WW|\$\$mm|\$\$dd|\$\$job|\$\$JOB)/i) && $lnParaDic{'x_space'} ne '0'){
+	$f->COM("skip_current_command");
+	$p->Messages('warning', "动态周期|动态料号$lnParaDic{'text'}不能更改间距!!");
+	exit;
+}
+if (($lnParaDic{'text'}=~/(\$\$)/i) and $lnParaDic{'type'} eq 'orb_plot_stamp_str') {
+	$f->COM("skip_current_command");
+	$p->Messages('warning', "奥宝类字体orb_plot_stamp_str，不允许添加动态字：$lnParaDic{'text'}");
+	exit;
+}
+
+
+# === song 检查料号锁 ===
+our @get_layer_list;
+our @get_layer;
+
+$f->COM('get_affect_layer');
+@get_layer_list = split(/ /, $f->{COMANS});
+$f->COM('get_work_layer');
+@get_layer = split(/ /, $f->{COMANS});
+foreach my $m (@get_layer) {
+	our $have_save = "no";
+	foreach my $n (@get_layer_list) {
+		if ($m eq "$n") {
+			$have_save = "yes";
+		}
+	}
+	if ($have_save eq "no") {
+		push(@get_layer_list, $m);
+	}
+}
+
+my $get_status = system("python /incam/server/site_data/scripts/hdi_scr/Tools/job_lock/pre_move_check.py  $STEP  @get_layer_list");
+if ($get_status != 0) {
+	exit 0;
+}
+
+# === 检查奥宝字符添加时，属性是否添加 ===
+&check_orb_stamp;
+
+$f->COM("get_units");
+my $units = $f->{COMANS};
+my @layerList = ();
+my ($value,$workLayer,$touchLyaer,$mirror) = &CheckThesymbol();
+#$f->PAUSE("$value,$workLayer,$touchLyaer,$mirror");
+if ($value eq 'skip') {
+	if ($mirror eq 'yes') {
+		$f->COM("skip_current_command");
+		#$f->PAUSE ("The Symbol is can not mirror");
+		$p->Messages('warning', "$workLayer 层添加Text时不允许镜像,请重新添加!");
+		exit;
+	}else{
+		$f->COM("skip_current_command");
+		if ($touchLyaer eq 'out') {
+			$p->Messages('warning', "$workLayer 添加Text时超出外形范围,请重新添加!");
+		}elsif($touchLyaer eq 'aff'){
+			$p->Messages('warning', "$workLayer 添加Text时影响到反面层,请取消重新添加!");
+		}elsif($touchLyaer eq 'cover'){
+            # $p->Messages('warning', "$workLayer 添加Text时Cover在线路大铜面,添加后请检查!");
+        }else{
+			$p->Messages('warning', "$workLayer 添加Text时接触到 $touchLyaer 层,请重新添加!");
+		}
+		exit;
+	}
+}
+my $CheckTouOut=CheckOutNignal(\%lnParaDic);
+if ($CheckTouOut eq "yes"){
+	$f->COM("skip_current_command");
+	$p->Messages('warning', "添加的字符touch到线路层的字符！请重试！");
+	exit;
+}
+
+
+sub CheckThesymbol{
+	my $AddpadLayer = 'addsymbol_back';
+	my $surface_layer = 'touch_suraface';
+	my $flatLayer = 'flatlayer_back';
+	my $edit_flatLayer = 'edit_flatlayer_back';
+	my $editLayer = 'editlayer';
+	my $silkback = 'silk_back';
+	my $maskback = 'mask_back';
+	my $signalback = 'signalback';
+	my $layer = hash();
+	my $value = 'skip';
+	my $touchLyaer;
+	my $mirror = 'no';
+	
+	# -->获取工作层
+	$f->COM("get_work_layer");
+	my $workLayer = $f->{COMANS};
+	
+	# -->重置过滤器
+	$f->COM("filter_reset,filter_name=popup");
+	
+	# -->删除备份层
+	&delete_bak_layer($AddpadLayer);
+	&delete_bak_layer($surface_layer);
+	
+	# -->获取显示层
+	$f->COM("get_disp_layers");
+	my $disp_layer = $f->{COMANS};
+	my @display_layer = split (' ',$disp_layer);
+	
+	# -->获取影响层
+	$f->COM("get_affect_layer");
+	my $aff_layer = $f->{COMANS};
+	my @affect_layer = split (' ',$aff_layer);
+	
+	# -->提取所有影响层
+	my @affect_list = ();
+	foreach my $aff(@affect_layer){
+		push @affect_list,$aff;
+	}
+	
+    my $clientNum = substr($JOB,1,3);
+    print("\$clientNum $clientNum\n");
+    
+	# -->填充铜皮公英制转换
+	my $fill_units;
+	if ($units eq 'inch') {
+		$fill_units = 100;
+	}else{
+		$fill_units = 2540;
+	}
+	
+	if ($STEP =~ /^edit*/) {
+		foreach my $i (@layerList){
+			if ($i eq $workLayer) {
+				#if ($lnVal[3] =~ /ul/ || $lnVal[3] =~ /zq/) {
+					# -->检查symbol是否镜像。
+					if ($workLayer eq $layer->{top_signal} || $workLayer eq $layer->{top_mask} || $workLayer eq $layer->{top_silk}) {
+						if ($lnVal[10] eq 'yes') {
+							$mirror = 'yes';
+							$touchLyaer = undef;
+							return ($value,$workLayer,$touchLyaer,$mirror);
+						}else{
+							foreach my $aff(@affect_layer){
+								if ($aff eq $layer->{bot_signal} || $aff eq $layer->{bot_mask} || $aff eq $layer->{bot_silk}) {
+									return ($value,$workLayer,'aff',$mirror);
+								}
+							}
+						}
+					}elsif($workLayer eq $layer->{bot_signal} || $workLayer eq $layer->{bot_mask} || $workLayer eq $layer->{bot_silk}) {
+						if ($lnVal[10] ne 'yes') {
+							$mirror = 'yes';
+							$touchLyaer = undef;
+							return ($value,$workLayer,$touchLyaer,$mirror);
+						}else{
+							foreach my $aff(@affect_layer){
+								if ($aff eq $layer->{top_signal} || $aff eq $layer->{top_mask} || $aff eq $layer->{top_silk}) {
+									return ($value,$workLayer,'aff',$mirror);
+								}
+							}
+						}
+					}
+					
+					# -->有没接触到其他物件只针对字体string，其他的不检测
+					#if ($lnVal[0] ne 'string') {
+						#next;
+					#}
+					
+					$f->COM("clear_layers");
+					$f->COM("affected_layer,mode=all,affected=no");
+					
+					# -->创建surface区域(profile内填充铜皮)
+					$f->COM("create_layer,layer=$surface_layer,context=misc,type=signal,polarity=positive,ins_layer=$workLayer");
+					$f->COM("display_layer,name=$surface_layer,display=yes,number=1");
+					$f->COM("work_layer,name=$surface_layer");
+					$f->COM("sr_fill,polarity=positive,step_margin_x=0,step_margin_y=0,step_max_dist_x=$fill_units,step_max_dist_y=$fill_units,sr_margin_x=-$fill_units,sr_margin_y=-$fill_units,sr_max_dist_x=0,sr_max_dist_y=0,nest_sr=no,consider_feat=no,consider_drill=no,consider_rout=no,dest=affected_layers,attributes=no");
+					
+					# -->添加信息层,touch/cover标记.
+					$f->COM("create_layer,layer=$AddpadLayer,context=misc,type=signal,polarity=positive,ins_layer=$workLayer");
+					$f->COM("display_layer,name=$AddpadLayer,display=yes,number=1");
+					$f->COM("work_layer,name=$AddpadLayer");
+					$f->COM("skip_next_pre_hook");
+					
+					# -->genesis添加text环境
+					#$f->COM("add_text,attributes=$lnVal[0],type=$lnVal[1],x=$lnVal[2],y=$lnVal[3],text=$lnVal[4],x_size=$lnVal[5],y_size=$lnVal[6],w_factor=$lnVal[7],polarity=$lnVal[8],angle=$lnVal[9],mirror=$lnVal[10],fontname=$lnVal[11],ver=$lnVal[23]");
+					#my $kk = 0;
+					#for my $value_new(@lnVal){
+					#    print ("$kk -- $lnParam[$kk]  $value_new\n");
+					#    $kk ++;
+					#}
+					
+					my $text_value = $lnVal[5];
+					if ($lnVal[6] eq 'vgt_date') {
+						$text_value = '8888';
+					}
+					
+					# -->Incam添加text环境 
+					if ($lnVal[0] ne 'string')
+					{
+						#print ("xxxxxxxxxxxxxxxxx1xxxxxxxxxxxxxxx\n");
+						my $add_text_string   = '';
+						for (my $i=0;$i<=$#lnParam;$i++){
+						 $add_text_string .= $lnParam[$i] . "=" . $lnParaDic{"$lnParam[$i]"} . ",";
+						
+						}
+						# ===非string类型不需要考虑字体为周期时的转换，忽略此定义   $lnParam[5]=$text_value,
+					    $f->COM("add_text,$add_text_string");
+				    }else{
+				        if ($lnVal[9] !~ /normal|exact/)
+				        {
+				            $f->COM("add_text,type=$lnVal[0],polarity=$lnVal[1],x=$lnVal[3],y=$lnVal[4],text=$text_value,fontname=$lnVal[6],height=$lnVal[7],style=$lnVal[8],
+					        width=$lnVal[9],mirror=$lnVal[10],angle=$lnVal[11],direction=$lnVal[12],w_factor=$lnVal[29]");
+				        }else{
+							if ($lnVal[26] == 0.2  && $lnVal[28] == 0.2) {
+								$f->COM("add_text,type=$lnVal[0],polarity=$lnVal[1],x=$lnVal[3],y=$lnVal[4],text=$text_value,fontname=$lnVal[6],height=$lnVal[7],style=$lnVal[8],
+								width=$lnVal[9],mirror=$lnVal[10],angle=$lnVal[11],direction=$lnVal[12],w_factor=$lnVal[29]");
+							}else{
+								$f->COM("add_text,
+								$lnParam[0]=$lnVal[0],
+								$lnParam[1]=$lnVal[1],
+								$lnParam[2]=$lnVal[2],
+								$lnParam[3]=$lnVal[3],
+								$lnParam[4]=$lnVal[4],
+								$lnParam[5]=$text_value,
+								$lnParam[6]=$lnVal[6],
+								$lnParam[7]=$lnVal[7],
+								$lnParam[8]=$lnVal[8],
+								$lnParam[9]=$lnVal[9],
+								$lnParam[10]=$lnVal[10],
+								$lnParam[11]=$lnVal[11],
+								$lnParam[12]=$lnVal[12],
+								$lnParam[13]=$lnVal[13],
+								$lnParam[14]=$lnVal[14],
+								$lnParam[15]=$lnVal[15],
+								$lnParam[16]=$lnVal[16],
+								$lnParam[17]=$lnVal[17],
+								$lnParam[18]=$lnVal[18],
+								$lnParam[19]=$lnVal[19],
+								$lnParam[20]=$lnVal[20],
+								$lnParam[21]=$lnVal[21],
+								$lnParam[22]=$lnVal[22],
+								$lnParam[23]=$lnVal[23],
+								$lnParam[24]=$lnVal[24],
+								$lnParam[25]=$lnVal[25],
+								$lnParam[26]=$lnVal[26],
+								$lnParam[27]=$lnVal[27],
+								$lnParam[28]=$lnVal[28],
+								$lnParam[29]=$lnVal[29],
+								$lnParam[30]=$lnVal[30],
+								$lnParam[31]=$lnVal[31]");
+							}
+				        }
+				    }
+                    #exit;
+					my @bak_list = ();
+					push (@bak_list,$AddpadLayer,$surface_layer);
+					if ($workLayer eq $layer->{top_signal}){
+						# -->工作层为top面线路时,添加过滤touch层列表
+						#my @check_list = ($layer->{top_silk},$layer->{top_mask},$layer->{top_signal},$surface_layer);
+						my @check_list = ();
+						foreach my $layer_list($layer->{top_silk},$layer->{top_mask},$layer->{top_signal},$surface_layer){
+							if ($layer_list) {
+								push @check_list,$layer_list;
+							}
+						}
+						push @check_list,$surface_layer;
+						
+						foreach my $check_layer(@check_list){
+							if ($check_layer eq $layer->{top_silk} || $check_layer eq $layer->{top_mask}) {
+								# -->当top字符,top阻焊
+								my $result = &check_touch_features($check_layer,$workLayer);
+								if ($result) {
+									&delete_bak_layer(@bak_list);
+									&affect_layer(@affect_list);
+									&restore_layer($workLayer,@display_layer);
+									return ($value,$workLayer,$check_layer,$mirror);
+								}
+							}elsif($check_layer eq $layer->{top_signal}){
+								# -->当top线路
+								$f->COM("sel_ref_feat,layers=$check_layer,use=filter,mode=cover,pads_as=shape,f_types=line\;pad\;surface\;arc\;text,polarity=positive\;negative");
+								$f->COM("get_select_count");
+								if ($f->{COMANS} == 0) {
+									my $result = &check_touch_features($check_layer,$workLayer);
+									if ($result) {
+										&delete_bak_layer(@bak_list);
+										&affect_layer(@affect_list);
+										&restore_layer($workLayer,@display_layer);
+										return ($value,$workLayer,$check_layer,$mirror);
+									}
+								}
+							}elsif($check_layer eq $surface_layer){
+								# -->当填充的surface
+								my $result = &check_cover_features($surface_layer,$workLayer);
+								if ($result) {
+									&delete_bak_layer(@bak_list);
+									&affect_layer(@affect_list);
+									&restore_layer($workLayer,@display_layer);
+									return ($value,$workLayer,'out',$mirror);
+								}
+							}
+						}
+					}elsif($workLayer eq $layer->{top_mask}){
+						# -->工作层为top面阻焊时,添加过滤touch层列表
+						#my @check_list = ($layer->{top_silk},$layer->{top_mask},$layer->{top_signal},$surface_layer);
+						my @check_list = ();
+						foreach my $layer_list($layer->{top_silk},$layer->{top_mask},$layer->{top_signal},$surface_layer){
+							if ($layer_list) {
+								push @check_list,$layer_list;
+							}
+						}
+						push @check_list,$surface_layer;
+						
+						foreach my $check_layer(@check_list){
+							if ($check_layer eq $layer->{top_silk}) {
+								# -->当top字符
+								my $result = &check_touch_features($check_layer,$workLayer);
+								if ($result) {
+									&delete_bak_layer(@bak_list);
+									&affect_layer(@affect_list);
+									&restore_layer($workLayer,@display_layer);
+									return ($value,$workLayer,$check_layer,$mirror);
+								}
+							}elsif($check_layer eq $layer->{top_signal} || $check_layer eq $layer->{top_mask}){
+								# -->当top阻焊,top线路
+								$f->COM("sel_ref_feat,layers=$check_layer,use=filter,mode=cover,pads_as=shape,f_types=line\;pad\;surface\;arc\;text,polarity=positive\;negative");
+								$f->COM("get_select_count");
+								if ($f->{COMANS} == 0) {
+									my $result = &check_touch_features($check_layer,$workLayer);
+									if ($result) {
+										&delete_bak_layer(@bak_list);
+										&affect_layer(@affect_list);
+										&restore_layer($workLayer,@display_layer);
+										return ($value,$workLayer,$check_layer,$mirror);
+									}
+								}elsif($check_layer eq $layer->{top_signal} and $clientNum eq "b06"){
+                                    &delete_bak_layer(@bak_list);
+                                    &affect_layer(@affect_list);
+                                    &restore_layer($workLayer,@display_layer);
+                                    $p->Messages('warning', "$workLayer 添加text时Cover到 $layer->{top_signal}大铜面(B06客户禁止添加防焊开窗物件在铜上),请重新添加!");
+                                    return ($value,$workLayer,'cover',$mirror);
+                                }
+							}elsif($check_layer eq $surface_layer){
+								# -->当填充的surface
+								my $result = &check_cover_features($surface_layer,$workLayer);
+								if ($result) {
+									&delete_bak_layer(@bak_list);
+									&affect_layer(@affect_list);
+									&restore_layer($workLayer,@display_layer);
+									return ($value,$workLayer,'out',$mirror);
+								}
+							}
+						}
+					}elsif($workLayer eq $layer->{top_silk}){
+						# -->工作层为top面字符时,添加过滤touch层列表
+						#my @check_list = ($layer->{top_silk},$layer->{top_mask},$surface_layer);
+						my @check_list = ();
+						foreach my $layer_list($layer->{top_silk},$layer->{top_mask},$surface_layer){
+							if ($layer_list) {
+								push @check_list,$layer_list;
+							}
+						}
+						push @check_list,$surface_layer;
+						
+						foreach my $check_layer(@check_list){
+							if ($check_layer eq $layer->{top_mask}) {
+								# -->当top阻焊
+								my $result = &check_touch_features($check_layer,$workLayer);
+								if ($result) {
+									&delete_bak_layer(@bak_list);
+									&affect_layer(@affect_list);
+									&restore_layer($workLayer,@display_layer);
+									return ($value,$workLayer,$check_layer,$mirror);
+								}
+							}elsif($check_layer eq $layer->{top_silk}){
+								# -->当top字符
+								$f->COM("sel_ref_feat,layers=$check_layer,use=filter,mode=cover,pads_as=shape,f_types=line\;pad\;surface\;arc\;text,polarity=positive\;negative");
+								$f->COM("get_select_count");
+								if ($f->{COMANS} == 0) {
+									my $result = &check_touch_features($check_layer,$workLayer);
+									if ($result) {
+										&delete_bak_layer(@bak_list);
+										&affect_layer(@affect_list);
+										&restore_layer($workLayer,@display_layer);
+										return ($value,$workLayer,$check_layer,$mirror);
+									}
+								}
+							}elsif($check_layer eq $surface_layer){
+								# -->当填充的surface
+								my $result = &check_cover_features($surface_layer,$workLayer);
+								if ($result) {
+									&delete_bak_layer(@bak_list);
+									&affect_layer(@affect_list);
+									&restore_layer($workLayer,@display_layer);
+									return ($value,$workLayer,'out',$mirror);
+								}
+							}
+						}
+					}elsif($workLayer eq $layer->{bot_signal}){
+						# -->工作层为bot面线路时,添加过滤touch层列表
+						#my @check_list = ($layer->{bot_silk},$layer->{bot_mask},$layer->{bot_signal},$surface_layer);
+						my @check_list = ();
+						foreach my $layer_list($layer->{bot_silk},$layer->{bot_mask},$layer->{bot_signal},$surface_layer){
+							if ($layer_list) {
+								push @check_list,$layer_list;
+							}
+						}
+						push @check_list,$surface_layer;
+						
+						foreach my $check_layer(@check_list){
+							if ($check_layer eq $layer->{bot_silk} || $check_layer eq $layer->{bot_mask}) {
+								# -->当bot字符,bot阻焊
+								my $result = &check_touch_features($check_layer,$workLayer);
+								if ($result) {
+									&delete_bak_layer(@bak_list);
+									&affect_layer(@affect_list);
+									&restore_layer($workLayer,@display_layer);
+									return ($value,$workLayer,$check_layer,$mirror);
+								}
+							}elsif($check_layer eq $layer->{bot_signal}){
+								# -->当bot线路
+								$f->COM("sel_ref_feat,layers=$check_layer,use=filter,mode=cover,pads_as=shape,f_types=line\;pad\;surface\;arc\;text,polarity=positive\;negative");
+								$f->COM("get_select_count");
+								if ($f->{COMANS} == 0) {
+									my $result = &check_touch_features($check_layer,$workLayer);
+									if ($result) {
+										&delete_bak_layer(@bak_list);
+										&affect_layer(@affect_list);
+										&restore_layer($workLayer,@display_layer);
+										return ($value,$workLayer,$check_layer,$mirror);
+									}
+								}
+							}elsif($check_layer eq $surface_layer){
+								# -->当填充的surface
+								my $result = &check_cover_features($surface_layer,$workLayer);
+								if ($result) {
+									&delete_bak_layer(@bak_list);
+									&affect_layer(@affect_list);
+									&restore_layer($workLayer,@display_layer);
+									return ($value,$workLayer,'out',$mirror);
+								}
+							}
+						}
+					}elsif($workLayer eq $layer->{bot_mask}){
+						# -->工作层为bot面阻焊时,添加过滤touch层列表
+						#my @check_list = ($layer->{bot_silk},$layer->{bot_mask},$layer->{bot_signal},$surface_layer);
+						my @check_list = ();
+						foreach my $layer_list($layer->{bot_silk},$layer->{bot_mask},$layer->{bot_signal},$surface_layer){
+							if ($layer_list) {
+								push @check_list,$layer_list;
+							}
+						}
+						push @check_list,$surface_layer;
+						
+						foreach my $check_layer(@check_list){
+							if ($check_layer eq $layer->{bot_silk}) {
+								# -->当bot字符
+								my $result = &check_touch_features($check_layer,$workLayer);
+								if ($result) {
+									&delete_bak_layer(@bak_list);
+									&affect_layer(@affect_list);
+									&restore_layer($workLayer,@display_layer);
+									return ($value,$workLayer,$check_layer,$mirror);
+								}
+							}elsif($check_layer eq $layer->{bot_signal} || $check_layer eq $layer->{bot_mask}){
+								# -->当bot线路,bot阻焊
+								$f->COM("sel_ref_feat,layers=$check_layer,use=filter,mode=cover,pads_as=shape,f_types=line\;pad\;surface\;arc\;text,polarity=positive\;negative");
+								$f->COM("get_select_count");
+								if ($f->{COMANS} == 0) {
+									my $result = &check_touch_features($check_layer,$workLayer);
+									if ($result) {
+										&delete_bak_layer(@bak_list);
+										&affect_layer(@affect_list);
+										&restore_layer($workLayer,@display_layer);
+										return ($value,$workLayer,$check_layer,$mirror);
+									}
+								}elsif($check_layer eq $layer->{bot_signal} and $clientNum eq "b06"){
+                                    &delete_bak_layer(@bak_list);
+                                    &affect_layer(@affect_list);
+                                    &restore_layer($workLayer,@display_layer);
+                                    $p->Messages('warning', "$workLayer 添加text时Cover到 $layer->{bot_signal}大铜面(B06客户禁止添加防焊开窗物件在铜上),请重新添加!");
+                                    return ($value,$workLayer,'cover',$mirror);
+                                }
+							}elsif($check_layer eq $surface_layer){
+								# -->当填充的surface
+								my $result = &check_cover_features($surface_layer,$workLayer);
+								if ($result) {
+									&delete_bak_layer(@bak_list);
+									&affect_layer(@affect_list);
+									&restore_layer($workLayer,@display_layer);
+									return ($value,$workLayer,'out',$mirror);
+								}
+							}
+						}
+					}elsif($workLayer eq $layer->{bot_silk}){
+						# -->工作层为bot面字符时,添加过滤touch层列表
+						#my @check_list = ($layer->{bot_silk},$layer->{bot_mask},$surface_layer);
+						my @check_list = ();
+						foreach my $layer_list($layer->{bot_silk},$layer->{bot_mask},$surface_layer){
+							if ($layer_list) {
+								push @check_list,$layer_list;
+							}
+						}
+						push @check_list,$surface_layer;
+						
+						foreach my $check_layer(@check_list){
+							if ($check_layer eq $layer->{bot_mask}) {
+								# -->当bot阻焊
+								my $result = &check_touch_features($check_layer,$workLayer);
+								if ($result) {
+									&delete_bak_layer(@bak_list);
+									&affect_layer(@affect_list);
+									&restore_layer($workLayer,@display_layer);
+									return ($value,$workLayer,$check_layer,$mirror);
+								}
+							}elsif($check_layer eq $layer->{bot_silk}){
+								# -->当bot字符
+								$f->COM("sel_ref_feat,layers=$check_layer,use=filter,mode=cover,pads_as=shape,f_types=line\;pad\;surface\;arc\;text,polarity=positive\;negative");
+								$f->COM("get_select_count");
+								if ($f->{COMANS} == 0) {
+									my $result = &check_touch_features($check_layer,$workLayer);
+									if ($result) {
+										&delete_bak_layer(@bak_list);
+										&affect_layer(@affect_list);
+										&restore_layer($workLayer,@display_layer);
+										return ($value,$workLayer,$check_layer,$mirror);
+									}
+								}
+							}elsif($check_layer eq $surface_layer){
+								# -->当填充的surface
+								my $result = &check_cover_features($surface_layer,$workLayer);
+								if ($result) {
+									&delete_bak_layer(@bak_list);
+									&affect_layer(@affect_list);
+									&restore_layer($workLayer,@display_layer);
+									return ($value,$workLayer,'out',$mirror);
+								}
+							}
+						}
+					}
+					
+					# -->删除备份层
+					#&delete_bak_layer(@bak_list);
+					
+					# -->还原影响层
+					&affect_layer(@affect_list);
+					
+					# -->还原显示层
+					&restore_layer($workLayer,@display_layer);
+				#}
+			}
+		}
+	}elsif($STEP =~ /^set*/){
+		foreach my $i (@layerList){
+			if ($i eq $workLayer) {
+				#if ($lnVal[3] =~ /ul/ || $lnVal[3] =~ /zq/) {
+					# -->检查symbol是否镜像。
+					if ($workLayer eq $layer->{top_signal} || $workLayer eq $layer->{top_mask} || $workLayer eq $layer->{top_silk}) {
+						if ($lnVal[10] eq 'yes') {
+							$mirror = 'yes';
+							$touchLyaer = undef;
+							return ($value,$workLayer,$touchLyaer,$mirror);
+						}else{
+							foreach my $aff(@affect_layer){
+								if ($aff eq $layer->{bot_signal} || $aff eq $layer->{bot_mask} || $aff eq $layer->{bot_silk}) {
+									return ($value,$workLayer,'aff',$mirror);
+								}
+							}
+						}
+					}elsif($workLayer eq $layer->{bot_signal} || $workLayer eq $layer->{bot_mask} || $workLayer eq $layer->{bot_silk}) {
+						if ($lnVal[10] ne 'yes') {
+							$mirror = 'yes';
+							$touchLyaer = undef;
+							return ($value,$workLayer,$touchLyaer,$mirror);
+						}else{
+							foreach my $aff(@affect_layer){
+								if ($aff eq $layer->{top_signal} || $aff eq $layer->{top_mask} || $aff eq $layer->{top_silk}) {
+									return ($value,$workLayer,'aff',$mirror);
+								}
+							}
+						}
+					}
+					
+					# -->有没接触到其他物件只针对字体string，其他的不检测
+					#if ($lnVal[0] ne 'string') {
+						#next;
+					#}
+					
+					$f->COM("clear_layers");
+					$f->COM("affected_layer,mode=all,affected=no");
+					
+					# -->创建surface区域(profile内填充铜皮)
+					$f->COM("create_layer,layer=$surface_layer,context=misc,type=signal,polarity=positive,ins_layer=$workLayer");
+					$f->COM("display_layer,name=$surface_layer,display=yes,number=1");
+					$f->COM("work_layer,name=$surface_layer");
+					$f->COM("sr_fill,polarity=positive,step_margin_x=0,step_margin_y=0,step_max_dist_x=$fill_units,step_max_dist_y=$fill_units,sr_margin_x=-$fill_units,sr_margin_y=-$fill_units,sr_max_dist_x=0,sr_max_dist_y=0,nest_sr=no,consider_feat=no,consider_drill=no,consider_rout=no,dest=affected_layers,attributes=no");
+					
+					# -->添加信息层,touch/cover标记.
+					$f->COM("create_layer,layer=$AddpadLayer,context=misc,type=signal,polarity=positive,ins_layer=$workLayer");
+					$f->COM("display_layer,name=$AddpadLayer,display=yes,number=1");
+					$f->COM("work_layer,name=$AddpadLayer");
+					$f->COM("skip_next_pre_hook");
+					
+					# -->genesis添加text环境
+					#$f->COM("add_text,attributes=$lnVal[0],type=$lnVal[1],x=$lnVal[2],y=$lnVal[3],text=$lnVal[4],x_size=$lnVal[5],y_size=$lnVal[6],w_factor=$lnVal[7],polarity=$lnVal[8],angle=$lnVal[9],mirror=$lnVal[10],fontname=$lnVal[11],ver=$lnVal[23]");
+					
+					#my $kk = 0;
+					#for my $value_new(@lnVal){
+					#    print ("$lnParam[$kk ]  $value_new\n");
+					#    $kk ++;
+					#}
+                    # -->Incam添加text环境
+					#if ($lnVal[0] ne 'string')
+					#{
+					#    $f->COM("add_text,type=$lnVal[0],polarity=$lnVal[1],attributes=$lnVal[2],x=$lnVal[3],y=$lnVal[4],text=$lnVal[5],fontname=$lnVal[6],
+					#    height=$lnVal[7],style=$lnVal[8],width=$lnVal[9],mirror=$lnVal[10],angle=$lnVal[11],direction=$lnVal[12],bar_type=$lnVal[13],
+					#    bar_char_set=$lnVal[14],bar128_code=$lnVal[15],matrix=$lnVal[16],qr_matrix=$lnVal[17],bar_checksum=$lnVal[18],bar_background=$lnVal[19],
+					#    bar_add_string=$lnVal[20],bar_add_string_pos=$lnVal[21],bar_marks=$lnVal[22],bar_width=$lnVal[23],bar_height=$lnVal[24],
+					#    bar_text_line=$lnVal[25],x_size=$lnVal[26],x_space=$lnVal[27],y_size=$lnVal[28],w_factor=$lnVal[29],ver=$lnVal[30],datum_point=$lnVal[31]");
+					#}else{
+					#    $f->COM("add_text,type=$lnVal[0],polarity=$lnVal[1],x=$lnVal[3],y=$lnVal[4],text=$lnVal[5],fontname=$lnVal[6],height=$lnVal[7],style=$lnVal[8],
+					#    width=$lnVal[9],mirror=$lnVal[10],angle=$lnVal[11],direction=$lnVal[12],w_factor=$lnVal[29]");
+					#}
+					
+					my $text_value = $lnVal[5];
+					if ($lnVal[6] eq 'vgt_date') {
+						$text_value = '8888';
+					}
+					
+					# -->Incam添加text环境 
+					if ($lnVal[0] ne 'string')
+					{
+					    $f->COM("add_text,
+					    $lnParam[0]=$lnVal[0],
+					    $lnParam[1]=$lnVal[1],
+					    $lnParam[2]=$lnVal[2],
+					    $lnParam[3]=$lnVal[3],
+					    $lnParam[4]=$lnVal[4],
+					    $lnParam[5]=$text_value,
+					    $lnParam[6]=$lnVal[6],
+					    $lnParam[7]=$lnVal[7],
+					    $lnParam[8]=$lnVal[8],
+					    $lnParam[9]=$lnVal[9],
+					    $lnParam[10]=$lnVal[10],
+					    $lnParam[11]=$lnVal[11],
+					    $lnParam[12]=$lnVal[12],
+					    $lnParam[13]=$lnVal[13],
+					    $lnParam[14]=$lnVal[14],
+					    $lnParam[15]=$lnVal[15],
+					    $lnParam[16]=$lnVal[16],
+					    $lnParam[17]=$lnVal[17],
+					    $lnParam[18]=$lnVal[18],
+					    $lnParam[19]=$lnVal[19],
+					    $lnParam[20]=$lnVal[20],
+					    $lnParam[21]=$lnVal[21],
+					    $lnParam[22]=$lnVal[22],
+					    $lnParam[23]=$lnVal[23],
+					    $lnParam[24]=$lnVal[24],
+					    $lnParam[25]=$lnVal[25],
+					    $lnParam[26]=$lnVal[26],
+					    $lnParam[27]=$lnVal[27],
+					    $lnParam[28]=$lnVal[28],
+					    $lnParam[29]=$lnVal[29],
+					    $lnParam[30]=$lnVal[30],
+					    $lnParam[31]=$lnVal[31]");
+				    }else{
+				        if ($lnVal[9] !~ /normal|exact/)
+				        {
+				            $f->COM("add_text,type=$lnVal[0],polarity=$lnVal[1],x=$lnVal[3],y=$lnVal[4],text=$text_value,fontname=$lnVal[6],height=$lnVal[7],style=$lnVal[8],
+					        width=$lnVal[9],mirror=$lnVal[10],angle=$lnVal[11],direction=$lnVal[12],w_factor=$lnVal[29]");
+				        }else{
+							if ($lnVal[26] == 0.2  && $lnVal[28] == 0.2) {
+								$f->COM("add_text,type=$lnVal[0],polarity=$lnVal[1],x=$lnVal[3],y=$lnVal[4],text=$text_value,fontname=$lnVal[6],height=$lnVal[7],style=$lnVal[8],
+								width=$lnVal[9],mirror=$lnVal[10],angle=$lnVal[11],direction=$lnVal[12],w_factor=$lnVal[29]");
+							}else{
+								$f->COM("add_text,
+								$lnParam[0]=$lnVal[0],
+								$lnParam[1]=$lnVal[1],
+								$lnParam[2]=$lnVal[2],
+								$lnParam[3]=$lnVal[3],
+								$lnParam[4]=$lnVal[4],
+								$lnParam[5]=$text_value,
+								$lnParam[6]=$lnVal[6],
+								$lnParam[7]=$lnVal[7],
+								$lnParam[8]=$lnVal[8],
+								$lnParam[9]=$lnVal[9],
+								$lnParam[10]=$lnVal[10],
+								$lnParam[11]=$lnVal[11],
+								$lnParam[12]=$lnVal[12],
+								$lnParam[13]=$lnVal[13],
+								$lnParam[14]=$lnVal[14],
+								$lnParam[15]=$lnVal[15],
+								$lnParam[16]=$lnVal[16],
+								$lnParam[17]=$lnVal[17],
+								$lnParam[18]=$lnVal[18],
+								$lnParam[19]=$lnVal[19],
+								$lnParam[20]=$lnVal[20],
+								$lnParam[21]=$lnVal[21],
+								$lnParam[22]=$lnVal[22],
+								$lnParam[23]=$lnVal[23],
+								$lnParam[24]=$lnVal[24],
+								$lnParam[25]=$lnVal[25],
+								$lnParam[26]=$lnVal[26],
+								$lnParam[27]=$lnVal[27],
+								$lnParam[28]=$lnVal[28],
+								$lnParam[29]=$lnVal[29],
+								$lnParam[30]=$lnVal[30],
+								$lnParam[31]=$lnVal[31]");
+							}
+				        }
+				    }
+					
+					#exit;
+					my @bak_list = ();
+					push (@bak_list,$AddpadLayer,$surface_layer);
+					if ($workLayer eq $layer->{top_signal}){
+						# -->工作层为top面线路时,添加过滤touch层列表
+						#my @check_list = ($layer->{top_silk},$layer->{top_mask},$layer->{top_signal},$surface_layer);
+						my @check_list = ();
+						foreach my $layer_list($layer->{top_silk},$layer->{top_mask},$layer->{top_signal},$surface_layer){
+							if ($layer_list) {
+								push @check_list,$layer_list;
+							}
+						}
+						push @check_list,$surface_layer;
+						
+						foreach my $check_layer(@check_list){
+							if ($check_layer eq $layer->{top_silk} || $check_layer eq $layer->{top_mask}) {
+								# -->当top字符,top阻焊
+								my $result = &check_set_touch_features($check_layer,$workLayer);
+								if ($result) {
+									&delete_bak_layer(@bak_list);
+									&affect_layer(@affect_list);
+									&restore_layer($workLayer,@display_layer);
+									return ($value,$workLayer,$check_layer,$mirror);
+								}
+							}elsif($check_layer eq $layer->{top_signal}){
+								# -->当top线路
+								
+								my $check_layer_bak = $check_layer.'_bak';
+								&delete_bak_layer($check_layer_bak);
+								
+								# -->打散当前层出来
+								$f->COM("flatten_layer,source_layer=$check_layer,target_layer=$check_layer_bak");
+								
+								$f->COM("sel_ref_feat,layers=$check_layer_bak,use=filter,mode=cover,pads_as=shape,f_types=line\;pad\;surface\;arc\;text,polarity=positive\;negative");
+								$f->COM("get_select_count");
+								if ($f->{COMANS} == 0) {
+									my $result = &check_set_touch_features($check_layer,$workLayer);
+									if ($result) {
+										&delete_bak_layer(@bak_list);
+										&affect_layer(@affect_list);
+										&restore_layer($workLayer,@display_layer);
+										return ($value,$workLayer,$check_layer,$mirror);
+									}
+								}
+							}elsif($check_layer eq $surface_layer){
+								# -->当填充的surface
+								my $result = &check_set_cover_features($surface_layer,$workLayer);
+								if ($result) {
+									&delete_bak_layer(@bak_list);
+									&affect_layer(@affect_list);
+									&restore_layer($workLayer,@display_layer);
+									return ($value,$workLayer,'out',$mirror);
+								}
+							}
+						}
+					}elsif($workLayer eq $layer->{top_mask}){
+						# -->工作层为top面阻焊时,添加过滤touch层列表
+						#my @check_list = ($layer->{top_silk},$layer->{top_mask},$layer->{top_signal},$surface_layer);
+						my @check_list = ();
+						foreach my $layer_list($layer->{top_silk},$layer->{top_mask},$layer->{top_signal},$surface_layer){
+							if ($layer_list) {
+								push @check_list,$layer_list;
+							}
+						}
+						push @check_list,$surface_layer;
+						
+						foreach my $check_layer(@check_list){
+							if ($check_layer eq $layer->{top_silk}) {
+								# -->当top字符
+								my $result = &check_set_touch_features($check_layer,$workLayer);
+								if ($result) {
+									&delete_bak_layer(@bak_list);
+									&affect_layer(@affect_list);
+									&restore_layer($workLayer,@display_layer);
+									return ($value,$workLayer,$check_layer,$mirror);
+								}
+							}elsif($check_layer eq $layer->{top_signal} || $check_layer eq $layer->{top_mask}){
+								# -->当top阻焊,top线路
+								
+								my $check_layer_bak = $check_layer.'_bak';
+								&delete_bak_layer($check_layer_bak);
+								
+								# -->打散当前层出来
+								$f->COM("flatten_layer,source_layer=$check_layer,target_layer=$check_layer_bak");
+								
+								$f->COM("sel_ref_feat,layers=$check_layer_bak,use=filter,mode=cover,pads_as=shape,f_types=line\;pad\;surface\;arc\;text,polarity=positive\;negative");
+								$f->COM("get_select_count");
+								if ($f->{COMANS} == 0) {
+									my $result = &check_set_touch_features($check_layer,$workLayer);
+									if ($result) {
+										&delete_bak_layer(@bak_list);
+										&affect_layer(@affect_list);
+										&restore_layer($workLayer,@display_layer);
+										return ($value,$workLayer,$check_layer,$mirror);
+									}
+								}
+							}elsif($check_layer eq $surface_layer){
+								# -->当填充的surface
+								my $result = &check_set_cover_features($surface_layer,$workLayer);
+								if ($result) {
+									&delete_bak_layer(@bak_list);
+									&affect_layer(@affect_list);
+									&restore_layer($workLayer,@display_layer);
+									return ($value,$workLayer,'out',$mirror);
+								}
+							}
+						}
+					}elsif($workLayer eq $layer->{top_silk}){
+						# -->工作层为top面字符时,添加过滤touch层列表
+						#my @check_list = ($layer->{top_silk},$layer->{top_mask},$surface_layer);
+						my @check_list = ();
+						foreach my $layer_list($layer->{top_silk},$layer->{top_mask},$surface_layer){
+							if ($layer_list) {
+								push @check_list,$layer_list;
+							}
+						}
+						push @check_list,$surface_layer;
+						
+						foreach my $check_layer(@check_list){
+							if ($check_layer eq $layer->{top_mask}) {
+								# -->当top阻焊
+								my $result = &check_set_touch_features($check_layer,$workLayer);
+								if ($result) {
+									&delete_bak_layer(@bak_list);
+									&affect_layer(@affect_list);
+									&restore_layer($workLayer,@display_layer);
+									return ($value,$workLayer,$check_layer,$mirror);
+								}
+							}elsif($check_layer eq $layer->{top_silk}){
+								# -->当top字符
+								
+								my $check_layer_bak = $check_layer.'_bak';
+								&delete_bak_layer($check_layer_bak);
+								
+								# -->打散当前层出来
+								$f->COM("flatten_layer,source_layer=$check_layer,target_layer=$check_layer_bak");
+								
+								$f->COM("sel_ref_feat,layers=$check_layer_bak,use=filter,mode=cover,pads_as=shape,f_types=line\;pad\;surface\;arc\;text,polarity=positive\;negative");
+								$f->COM("get_select_count");
+								if ($f->{COMANS} == 0) {
+									my $result = &check_set_touch_features($check_layer,$workLayer);
+									if ($result) {
+										&delete_bak_layer(@bak_list);
+										&affect_layer(@affect_list);
+										&restore_layer($workLayer,@display_layer);
+										return ($value,$workLayer,$check_layer,$mirror);
+									}
+								}
+							}elsif($check_layer eq $surface_layer){
+								# -->当填充的surface
+								my $result = &check_set_cover_features($surface_layer,$workLayer);
+								if ($result) {
+									&delete_bak_layer(@bak_list);
+									&affect_layer(@affect_list);
+									&restore_layer($workLayer,@display_layer);
+									return ($value,$workLayer,'out',$mirror);
+								}
+							}
+						}
+					}elsif($workLayer eq $layer->{bot_signal}){
+						# -->工作层为bot面线路时,添加过滤touch层列表
+						#my @check_list = ($layer->{bot_silk},$layer->{bot_mask},$layer->{bot_signal},$surface_layer);
+						my @check_list = ();
+						foreach my $layer_list($layer->{bot_silk},$layer->{bot_mask},$layer->{bot_signal},$surface_layer){
+							if ($layer_list) {
+								push @check_list,$layer_list;
+							}
+						}
+						push @check_list,$surface_layer;
+						
+						foreach my $check_layer(@check_list){
+							if ($check_layer eq $layer->{bot_silk} || $check_layer eq $layer->{bot_mask}) {
+								# -->当bot字符,bot阻焊
+								my $result = &check_set_touch_features($check_layer,$workLayer);
+								if ($result) {
+									&delete_bak_layer(@bak_list);
+									&affect_layer(@affect_list);
+									&restore_layer($workLayer,@display_layer);
+									return ($value,$workLayer,$check_layer,$mirror);
+								}
+							}elsif($check_layer eq $layer->{bot_signal}){
+								# -->当bot线路
+								
+								my $check_layer_bak = $check_layer.'_bak';
+								&delete_bak_layer($check_layer_bak);
+								
+								# -->打散当前层出来
+								$f->COM("flatten_layer,source_layer=$check_layer,target_layer=$check_layer_bak");
+								
+								$f->COM("sel_ref_feat,layers=$check_layer_bak,use=filter,mode=cover,pads_as=shape,f_types=line\;pad\;surface\;arc\;text,polarity=positive\;negative");
+								$f->COM("get_select_count");
+								if ($f->{COMANS} == 0) {
+									my $result = &check_set_touch_features($check_layer,$workLayer);
+									if ($result) {
+										&delete_bak_layer(@bak_list);
+										&affect_layer(@affect_list);
+										&restore_layer($workLayer,@display_layer);
+										return ($value,$workLayer,$check_layer,$mirror);
+									}
+								}
+							}elsif($check_layer eq $surface_layer){
+								# -->当填充的surface
+								my $result = &check_set_cover_features($surface_layer,$workLayer);
+								if ($result) {
+									&delete_bak_layer(@bak_list);
+									&affect_layer(@affect_list);
+									&restore_layer($workLayer,@display_layer);
+									return ($value,$workLayer,'out',$mirror);
+								}
+							}
+						}
+					}elsif($workLayer eq $layer->{bot_mask}){
+						# -->工作层为bot面阻焊时,添加过滤touch层列表
+						#my @check_list = ($layer->{bot_silk},$layer->{bot_mask},$layer->{bot_signal},$surface_layer);
+						my @check_list = ();
+						foreach my $layer_list($layer->{bot_silk},$layer->{bot_mask},$layer->{bot_signal},$surface_layer){
+							if ($layer_list) {
+								push @check_list,$layer_list;
+							}
+						}
+						push @check_list,$surface_layer;
+						
+						foreach my $check_layer(@check_list){
+							if ($check_layer eq $layer->{bot_silk}) {
+								# -->当bot字符
+								my $result = &check_set_touch_features($check_layer,$workLayer);
+								if ($result) {
+									&delete_bak_layer(@bak_list);
+									&affect_layer(@affect_list);
+									&restore_layer($workLayer,@display_layer);
+									return ($value,$workLayer,$check_layer,$mirror);
+								}
+							}elsif($check_layer eq $layer->{bot_signal} || $check_layer eq $layer->{bot_mask}){
+								# -->当bot线路,bot阻焊
+								
+								my $check_layer_bak = $check_layer.'_bak';
+								&delete_bak_layer($check_layer_bak);
+								
+								# -->打散当前层出来
+								$f->COM("flatten_layer,source_layer=$check_layer,target_layer=$check_layer_bak");
+								
+								$f->COM("sel_ref_feat,layers=$check_layer_bak,use=filter,mode=cover,pads_as=shape,f_types=line\;pad\;surface\;arc\;text,polarity=positive\;negative");
+								$f->COM("get_select_count");
+								if ($f->{COMANS} == 0) {
+									my $result = &check_set_touch_features($check_layer,$workLayer);
+									if ($result) {
+										&delete_bak_layer(@bak_list);
+										&affect_layer(@affect_list);
+										&restore_layer($workLayer,@display_layer);
+										return ($value,$workLayer,$check_layer,$mirror);
+									}
+								}
+							}elsif($check_layer eq $surface_layer){
+								# -->当填充的surface
+								my $result = &check_set_cover_features($surface_layer,$workLayer);
+								if ($result) {
+									&delete_bak_layer(@bak_list);
+									&affect_layer(@affect_list);
+									&restore_layer($workLayer,@display_layer);
+									return ($value,$workLayer,'out',$mirror);
+								}
+							}
+						}
+					}elsif($workLayer eq $layer->{bot_silk}){
+						# -->工作层为bot面字符时,添加过滤touch层列表
+						#my @check_list = ($layer->{bot_silk},$layer->{bot_mask},$surface_layer);
+						my @check_list = ();
+						foreach my $layer_list($layer->{bot_silk},$layer->{bot_mask},$surface_layer){
+							if ($layer_list) {
+								push @check_list,$layer_list;
+							}
+						}
+						push @check_list,$surface_layer;
+						
+						foreach my $check_layer(@check_list){
+							if ($check_layer eq $layer->{bot_mask}) {
+								# -->当bot阻焊
+								my $result = &check_set_touch_features($check_layer,$workLayer);
+								if ($result) {
+									&delete_bak_layer(@bak_list);
+									&affect_layer(@affect_list);
+									&restore_layer($workLayer,@display_layer);
+									return ($value,$workLayer,$check_layer,$mirror);
+								}
+							}elsif($check_layer eq $layer->{bot_silk}){
+								# -->当bot字符
+								
+								my $check_layer_bak = $check_layer.'_bak';
+								&delete_bak_layer($check_layer_bak);
+								
+								# -->打散当前层出来
+								$f->COM("flatten_layer,source_layer=$check_layer,target_layer=$check_layer_bak");
+								
+								$f->COM("sel_ref_feat,layers=$check_layer_bak,use=filter,mode=cover,pads_as=shape,f_types=line\;pad\;surface\;arc\;text,polarity=positive\;negative");
+								$f->COM("get_select_count");
+								if ($f->{COMANS} == 0) {
+									my $result = &check_set_touch_features($check_layer,$workLayer);
+									if ($result) {
+										&delete_bak_layer(@bak_list);
+										&affect_layer(@affect_list);
+										&restore_layer($workLayer,@display_layer);
+										return ($value,$workLayer,$check_layer,$mirror);
+									}
+								}
+							}elsif($check_layer eq $surface_layer){
+								# -->当填充的surface
+								my $result = &check_set_cover_features($surface_layer,$workLayer);
+								if ($result) {
+									&delete_bak_layer(@bak_list);
+									&affect_layer(@affect_list);
+									&restore_layer($workLayer,@display_layer);
+									return ($value,$workLayer,'out',$mirror);
+								}
+							}
+						}
+					}
+					
+					# -->删除备份层
+					&delete_bak_layer(@bak_list);
+					
+					# -->还原影响层
+					&affect_layer(@affect_list);
+					
+					# -->还原显示层
+					&restore_layer($workLayer,@display_layer);
+				#}
+			}
+		}
+	}
+}
+
+sub hash{
+    my %layer;
+    $f->INFO(entity_type => 'matrix',
+         entity_path => "$JOB/matrix",
+         data_type => 'ROW');
+    my @layerContext = @{$f->{doinfo}{gROWcontext}};
+    my @layerType = @{$f->{doinfo}{gROWlayer_type}};
+    my @layerSide = @{$f->{doinfo}{gROWside}};
+    my @layerName = @{$f->{doinfo}{gROWname}};
+    my @layerRow = @{$f->{doinfo}{gROWrow}};
+    foreach (my $i=0; $i<=$#layerName; $i++){
+        if ($layerContext[$i] eq 'board') {
+            if ($layerSide[$i] eq 'top') {
+                if ($layerType[$i] eq 'signal') {
+                    $layer{top_signal} = $layerName[$i];
+					push @layerList,$layerName[$i];
+                }elsif($layerType[$i] eq 'solder_mask'){
+                    $layer{top_mask} = $layerName[$i];
+					push @layerList,$layerName[$i];
+                }elsif($layerType[$i] eq 'silk_screen'){
+                    $layer{top_silk} = $layerName[$i];
+					push @layerList,$layerName[$i];
+                }
+            }else{
+                if ($layerType[$i] eq 'signal') {
+                    $layer{bot_signal} = $layerName[$i];
+					push @layerList,$layerName[$i];
+                }elsif($layerType[$i] eq 'solder_mask'){
+                    $layer{bot_mask} = $layerName[$i];
+					push @layerList,$layerName[$i];
+                }elsif($layerType[$i] eq 'silk_screen'){
+                    $layer{bot_silk} = $layerName[$i];
+					push @layerList,$layerName[$i];
+                }elsif($layerType[$i] eq 'drill'){
+                    $layer{drill} = $layerName[$i];
+					push @layerList,$layerName[$i];
+                }
+            }
+        }else{
+			if ($layerName[$i] eq 'ww') {
+				$layer{outline} = $layerName[$i];
+				push @layerList,$layerName[$i];
+			}
+		}
+    }
+    return \%layer;
+}
+
+# -->转换$1文件
+sub iShellWords {  #Shell 变量转换 #my @words = iShellWords($line); #my @words = iShellWords(@lines);
+#	local ($_) = join('', @_) if @_;
+#	local (@words,$snippet,$field);
+	my ($_) = join('', @_) if @_;
+	my (@words,$snippet,$field);
+
+	s/^\s+//;
+	while ($_ ne '') {
+		$field = '';
+		for (;;) {
+			if (s/^"(([^"\\]|\\[\\"])*)"//) {
+				($snippet = $1) =~ s#\\(.)#$1#g;
+			} elsif (/^"/) {
+				die "Unmatched double quote: $_\n";
+			} elsif (s/^'(([^'\\]|\\[\\'])*)'//) {
+				($snippet = $1) =~ s#\\(.)#$1#g;
+			} elsif (/^'/) {
+				die "Unmatched single quote: $_\n";
+			} elsif (s/^\\(.)//) {
+				$snippet = $1;
+			} elsif (s/^([^\s\\'"]+)//) {
+				$snippet = $1;
+			} else {
+				s/^\s+//;
+				last;
+			}
+			$field .= $snippet;
+		}
+		push(@words, $field);
+	}
+	return(@words);
+}
+
+sub CheckStepList{
+	my ($step) = @_;
+	my @editList;
+	$f->INFO(entity_type => 'step',
+         entity_path => "$JOB/$step",
+         data_type => 'REPEAT');
+	my @STEPLIST = @{$f->{doinfo}{gREPEATstep}};
+	if (@STEPLIST) {
+		foreach my $i (@STEPLIST){
+			push @editList,$i;
+		}
+	}
+	# -->去重复step.
+	my %count = ();
+	@editList = grep {++$count{$_} == 1}@editList;
+	return (@editList);
+}
+
+sub check_touch_features{
+	my ($layer,$workLayer) = @_;
+	$f->COM("sel_ref_feat,layers=$layer,use=filter,mode=touch,pads_as=shape,f_types=line\;pad\;surface\;arc\;text,polarity=positive\;negative");
+	$f->COM("get_select_count");
+	if ($f->{COMANS} != 0) {
+		$f->COM("clear_highlight");
+		$f->COM("sel_clear_feat");
+		return $layer;
+	}
+}
+
+sub check_set_touch_features{
+	my ($layer,$workLayer) = @_;
+	my $layer_bak = $layer.'_bak';
+	&delete_bak_layer($layer_bak);
+	
+	$f->COM("flatten_layer,source_layer=$layer,target_layer=$layer_bak");
+	$f->COM("sel_ref_feat,layers=$layer_bak,use=filter,mode=touch,pads_as=shape,f_types=line\;pad\;surface\;arc\;text,polarity=positive\;negative");
+	$f->COM("get_select_count");
+	if ($f->{COMANS} != 0) {
+		$f->COM("clear_highlight");
+		$f->COM("sel_clear_feat");
+		&delete_bak_layer($layer_bak);
+		return $layer;
+	}
+	&delete_bak_layer($layer_bak);
+}
+
+sub check_cover_features{
+	my ($flatLayer,$workLayer) = @_;
+	$f->COM("sel_ref_feat,layers=$flatLayer,use=filter,mode=cover,pads_as=shape,f_types=line\;pad\;surface\;arc\;text,polarity=positive\;negative");
+	$f->COM("sel_reverse");
+	$f->COM("get_select_count");
+	if ($f->{COMANS} != 0) {
+		$f->COM("display_layer,name=$workLayer,display=yes,number=1");
+		$f->COM("work_layer,name=$workLayer");
+		return $workLayer;
+	}
+}
+
+sub check_set_cover_features{
+	my ($flatLayer,$workLayer) = @_;
+	my $layer_bak = $flatLayer.'_bak';
+	&delete_bak_layer($layer_bak);
+	$f->COM("flatten_layer,source_layer=$flatLayer,target_layer=$layer_bak");
+	$f->COM("sel_ref_feat,layers=$layer_bak,use=filter,mode=cover,pads_as=shape,f_types=line\;pad\;surface\;arc\;text,polarity=positive\;negative");
+	$f->COM("sel_reverse");
+	$f->COM("get_select_count");
+	if ($f->{COMANS} != 0) {
+		$f->COM("display_layer,name=$workLayer,display=yes,number=1");
+		$f->COM("work_layer,name=$workLayer");
+		&delete_bak_layer($layer_bak);
+		return $workLayer;
+	}
+	&delete_bak_layer($layer_bak);
+}
+
+sub delete_bak_layer{
+	my @layer = @_;
+	#$f->COM("units,type=$units");
+	foreach my $tmp(@layer){
+		$f->INFO(entity_type => 'layer',
+			entity_path => "$JOB/$STEP/$tmp",
+			data_type => 'EXISTS');
+		if ($f->{doinfo}{gEXISTS} eq 'yes') {
+			$f->COM("delete_layer,layer=$tmp");
+		}
+	}
+}
+
+sub restore_layer{
+	my ($workLayer,@display_layer) = @_;
+	for (my $j=0; $j<=$#display_layer; $j++){
+		my $count = $j + 1;
+		if ($display_layer[$j] eq $workLayer) {
+			$f->COM("display_layer,name=$display_layer[$j],display=yes,number=$count");
+			$f->COM("work_layer,name=$display_layer[$j]");
+		}else{
+			$f->COM("display_layer,name=$display_layer[$j],display=yes,number=$count");
+		}
+	}
+}
+
+sub affect_layer{
+	my @affect_layer = @_;
+	foreach my $aff_list(@affect_layer){
+		$f->COM("affected_layer,name=$aff_list,mode=single,affected=yes");
+	}
+}
+sub CheckOutNignal{
+	my $lnParaDic=shift;
+	
+	
+	$f->COM("get_affect_layer");
+	my $aff_layer = $f->{COMANS};
+	my @affect_layer = split (' ',$aff_layer);
+	# -->获取显示层
+	$f->COM("get_disp_layers");
+	my $disp_layer = $f->{COMANS};
+	my @display_layer = split (' ',$disp_layer);
+	# -->获取工作层
+	$f->COM("get_work_layer");
+	my $workLayer = $f->{COMANS};
+	
+	my $layers=hash();
+	
+	my $pd="no";
+	my $touch="no";
+	foreach my $aff_list (@affect_layer){
+		if ($aff_list eq  $layers->{bot_mask} 
+			|| $aff_list eq $layers->{top_mask}
+			|| $aff_list eq $layers->{bot_silk}
+			|| $aff_list eq $layers->{top_silk}){
+			
+			delete_bak_layer("$aff_list---tmp");
+			
+			$f->COM("create_layer,layer=$aff_list---tmp,context=misc,type=signal,polarity=positive,ins_layer=");
+			$f->COM("clear_layers");
+			$f->COM("affected_layer,mode=all,affected=no");		
+			$f->COM("affected_layer,name=$aff_list---tmp,mode=single,affected=yes");
+			$f->COM("skip_next_pre_hook");
+			my $string   = '';
+			for (my $i=0;$i<=$#lnParam;$i++){
+            $string .= $lnParam[$i] . "=" . $lnParaDic{"$lnParam[$i]"} . ",";
+			
+			}
+			$f->COM("add_text,$string");
+			
+			
+#			$f->COM ("add_text,type=string,polarity=$lnParaDic->{polarity},x=$lnParaDic->{x},y=$lnParaDic->{y},text=$lnParaDic->{text},fontname=$lnParaDic->{fontname},height=$lnParaDic->{height},width=$lnParaDic->{width},mirror=$lnParaDic->{mirror},angle=$lnParaDic->{angle},direction=$lnParaDic->{direction},w_factor=$lnParaDic->{w_factor}");
+			$pd="yes";
+			my $relayer;
+			$relayer= $layers->{bot_signal} if ($aff_list eq $layers->{bot_silk} || $aff_list eq $layers->{bot_mask});
+			$relayer= $layers->{top_signal} if ($aff_list eq $layers->{top_silk} || $aff_list eq $layers->{top_mask});
+			$f->COM("filter_reset,filter_name=popup");
+			$f->COM("sel_ref_feat,layers=$relayer,use=filter,mode=touch,pads_as=shape,f_types=text,polarity=positive\;negative");
+			$f->COM("get_select_count");
+			if ($f->{COMANS} != 0) {
+				$touch='yes';
+			}
+			delete_bak_layer("$aff_list---tmp");
+		}
+	}
+	return "no" if ($pd eq "no");
+	&affect_layer(@affect_layer);		
+	# -->还原显示层
+	&restore_layer($workLayer,@display_layer);
+	return $touch eq 'yes'? "yes":"no";
+}
+
+
+sub check_orb_stamp{
+	my $lnParaDic=shift;
+	if ($lnParaDic{"text"}  eq '-SSS' || $lnParaDic{"text"} eq 'B1001001' ||$lnParaDic{"text"} eq 'B2123123SSS') {
+		if ($lnParaDic{"type"} ne 'orb_plot_stamp_str' && $lnParaDic{"type"} ne 'orb_plot_stamp_bar') {
+			$f->COM("skip_current_command");
+			$p->Messages('warning', "添加奥宝字符及二维码,非奥宝类型，请重新添加!");
+			exit;
+		}
+		if ($lnParaDic{"attributes"}  eq 'no') {
+			$f->COM("skip_current_command");
+			$p->Messages('warning', "添加奥宝字符及二维码,未设定属性，请重新添加!");
+			exit;
+		}
+		else{
+			# === 判断添加的属性中是否有'.deferred' 不能直接获取或定义，此处借助辅助层检查 ===
+			# -->获取显示层
+			$f->COM("get_disp_layers");
+			my $disp_layer = $f->{COMANS};
+			my @display_layer = split (' ',$disp_layer);
+			
+			# -->获取影响层
+			$f->COM("get_affect_layer");
+			my $aff_layer = $f->{COMANS};
+			my @affect_layer = split (' ',$aff_layer);
+			
+			# -->提取所有影响层
+			my @affect_list = ();
+			foreach my $aff(@affect_layer){
+				push @affect_list,$aff;
+			}
+			$f->COM("clear_layers");
+			$f->COM("affected_layer,mode=all,affected=no");
+			my $tmp_layer = "__tmp_orb_layer__";
+			&delete_bak_layer($tmp_layer);
+			$f->COM("create_layer,layer=$tmp_layer,context=misc,type=signal,polarity=positive,ins_layer=");
+			$f->COM("affected_layer,name=$tmp_layer,mode=single,affected=yes");
+			$f->COM("skip_next_pre_hook");
+			my $add_text_string   = '';
+			for (my $i=0;$i<=$#lnParam;$i++){
+				print 'i ' . $i ." ". $lnParam[$i] ." " .$lnParaDic{"$lnParam[$i]"} . "\n";
+				$add_text_string .= $lnParam[$i] . "=" . $lnParaDic{"$lnParam[$i]"} . ",";
+			}
+			$f->COM("add_text,$add_text_string");
+
+			my $csh_file  = "/tmp/info_csh.$$";
+			$f->COM("info, out_file=$csh_file, units=mm,args= -t layer -e $JOB/$STEP/$tmp_layer -m display -d FEATURES");
+			my @getData = $p->dealwithFeatureFile($csh_file);
+			print Dumper(\@getData);
+			unlink ($csh_file);
+			my $defer_exist = 'no';
+			# === 判断添加的属性中是否有'.deferred'
+			for (my $i=0;$i<=$#getData;$i++){
+				for (my $j=0;$j<=$#{$getData[$i]{'attributes'}};$j++) {
+					if ($getData[$i]{'attributes'}[$j] eq '.deferred') {
+						$defer_exist = 'yes';
+					}
+				}
+			}
+			&delete_bak_layer($tmp_layer);
+			&affect_layer(@affect_layer);		
+			# -->还原显示层
+			&restore_layer($workLayer,@display_layer);
+			if ($defer_exist eq 'no') {
+				$f->COM("skip_current_command");
+				$p->Messages('warning', "添加奥宝字符及二维码,属性未添加'.deferred'请重新添加!");
+				exit;
+			}
+		}
+	}
+}
+
+
+

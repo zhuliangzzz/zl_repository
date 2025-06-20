@@ -1,0 +1,212 @@
+#! /bin/csh
+#################################################
+#scripts:test by chris
+#author: chris
+#date:2015.08.18
+#purpose:
+#################################################
+# set echo 
+# File Name:    out_file
+# File Purpose: This file is called during the ADM process. It is a c-shell
+#               script which is used to manipulate various parts of the output
+#               file dependant on the tool parameters and the machine file being
+#               used etc.
+# Written by:   Ian Ticehurst (Autom8 Ltd.)
+# Version 1A.:  Date: 15.09.00 - Initial design and development.
+# Version 1B.:  Date: 27.10.00 - Addition of specific routines to match machine file names.
+# Version 1C.:  Date: 05.12.00 - Removal of "gui" alias and "gui" data and response settings (not used).
+# Version 1D.:  Date: 16.01.01 - Add check for NT shell version. Also modify gawk calls dependant on version.
+# Version 1E.:  Date: 20.02.01 - Ensure that all "gawk" calls are modified to "awk" and that "awk95" is aliased.
+############################# Start of notes ###############################
+# This file is located in the hooks/ncd directory and forms part of the Auto Drill
+# Manager file set. It is a c-shell script which can be configured to provide user
+# and site specific modifications to the drill output files dependant on the different
+# parameters allocated to each tool (type, size, hole/slot etc.) and also the machine
+# file being used. 
+# This script is started with one parameter passed to it. This parameters is a file
+# which can be sourced ($1). This source file contains details of the drill table and
+# the ADM parameters and this is the information that can be used to define any actions
+# required. The file contains the following formatted information:-
+#
+#set ncLAYER = (drill )
+#set ncSET = (test)
+#set ncMACHINE = (hittachi )
+#set ncNUM_STAGES = (2 )
+#set ncNUM_SPLITS = (1 )
+#set ncSTAGE = (2 )
+#set ncSPLIT = (1 )
+#set ncFORMAT = (Excellon2 )
+#set ncZEROES = (trailing )
+#set ncINCREMNTAL = (no)
+#set ncREPETITIONS = (sr)
+#set ncUNITS = (inch )
+#set ncTOOL_UNITS = (inch )
+#set ncNF = (2.4 )
+#set ncHEADER_PATH = ("" )
+#set ncEOF_PATH = (/genesis/tmp/genesis186b5.1471 )
+#set ncTOOL_NUM      = (1      2      3      )
+#set ncTOOL_SIZE     = (35.354 74     94     )
+#set ncTOOL_SIZE2    = (.035   .074   .094   )
+#set ncTOOL_MAX_HITS = (5000   500    500    )
+#set ncTOOL_HITS     = (134    14     12     )
+#set ncTOOL_SPEED    = (300    300    300    )
+#set ncTOOL_FEED     = (85     85     85     )
+#set ncTOOL_NIBBLE   = (no     yes    no     )
+#set ncTOOL_SLOT     = (yes    no     no     )
+#set ncTOOL_CHANGE   = (""     ""     ""     )
+#set ncTOOL_FINISH   = (""     ""     ""     )
+#set ncFULL_STEP      = ('c1'                              )
+#set ncFULL_SR_START  = ('/genesis/tmp/genesis18715.14636' )
+#set ncFULL_SR_END    = ('/genesis/tmp/genesis18716.14636' )
+#set ncSR_NAME   = (pcb     pcb     pcb     coupon  panel)
+#set ncSERIAL    = (1       2       3       4       5)
+#set ncSR_DX     = (1.025   1.025   1.025   0.53    0)
+#set ncSR_DY     = (0.75    4.75    8.75    6.5     0)
+#set ncSR_ANGLE  = (0       0       0       270     0)
+#set ncSR_MIRROR = (0       0       0       0       0)
+#set ncFULL      = (0       0       0       0       0)
+#
+# This file can control the following parts of the output files:-
+# 1. The header.                   --- ncHEADER_PATH 
+# 2. The end of file.              --- ncEOF_PATH 
+# 3. The tool changes.             --- ncTOOL_CHANGE
+# 4. The tool finish.              --- ncTOOL_FINISH
+# 5. The step and repeat start.    --- ncFULL_SR_START 
+# 6. The step and repeat finish.   --- ncFULL_SR_END  
+# (Note: the last two options are only available when full step and repeat mode is used
+# which is set by the step entity attribute output drill output (yes/no))  
+#
+# It should be noted that there is no single output file (as with the set_table hook)
+# and the output files are defined by the variables list in notes 1-7 above. These
+# variables are only set if the machine file is set to use this out_file program for
+# that specific section. Thus, by testing each variable it is possible to know if
+# the custom output should be used. It will also be noted that some variables apply
+# to the complete output file (ncHEADER_PATH for example) and some apply to each of
+# the tool entries being passed.
+# If the machine file has any of these sections set to yes, then the program must
+# provide that section of the output file. Also, if the machine file has any of these
+# sections set to no, the program for that section is ignored.
+############################# End of notes ################################ 
+
+# Section to set up general parameters and variables.
+# ---------------------------------------------------
+# Define correct temp. dir. depending on env. vars.
+if ($?GENESIS_TMP) then
+	set TMP = $GENESIS_TMP
+else if ($?GENESIS_DIR) then
+	set TMP = $GENESIS_DIR/tmp
+else
+	set TMP = /genesis/tmp
+endif
+
+# Set the INFO alias and the tmp INFO file.
+set INFO = $TMP/info
+alias DO_INFO 'COM info,out_file=$INFO,write_mode=replace,args=\!:*;source $INFO;rm $INFO'
+
+# Detect current operating system.
+set CURR_OS = `uname -s`
+
+# If current operating system is NT, set alias to call awk95 as "awk".
+if ($CURR_OS == "WINDOWS_NT") then
+	alias awk '$GENESIS_DIR/e${GENESIS_VER}/nt/bin/awk95'
+endif
+
+# Detect current tcsh version (old = 0, new = 1).
+if ($CURR_OS == "WINDOWS_NT") then
+	set NT_VER = `echo "$version" | awk -F'-' '{if ($7 < 5.0) print 0; else print 1}'`
+endif
+
+# Set variable names for parameter file to source and out_file to write to.
+set source_script = $1
+
+# Force units to inch.
+#COM ncset_units,units=mm
+
+COM get_user_name
+set userName = $COMANS
+#echo "UserName:$userName\n\n\n"
+
+set file_path = "/tmp"
+
+
+# Source standard parameter file.
+
+source $source_script
+# -- 测试用
+#if ($userName == "liuc" || $userName == "lt") then
+
+    if ($ncHEADER_PATH != "") then
+        set i = 1
+        echo "M48" >  $ncHEADER_PATH
+        echo "MM,LZ" >> $ncHEADER_PATH
+        set sort_t = "no"
+        if ($?ncTOOL_NUM) then
+            while ($i <= $#ncTOOL_NUM)
+                #echo "$ncTOOL_NUM[$i] $ncTOOL_SIZE[$i] $ncTOOL_SLOT[$i]" >> $file_path/chris-test
+                
+                set compare_value = $ncSTAGE
+                
+                #set nc_num = ` echo $ncTOOL_SIZE[$i] | awk '{print $1*1000}' `		## by hyp, Dec 22, 2017
+                set nc_num = `echo $ncTOOL_SIZE[$i] | awk '{printf "%.0f",$1*1000}'`		## by hyp, Dec 22, 2017
+                #perl "/incam/server/site_data/scripts/sh_script/ncd/getsql.pl" #检测钻带里是否含有喇叭孔 lkx 2022/02/22 需求：http://192.168.2.120:82/zentao/story-view-3938.html
+				
+                if ( $nc_num > 6350000 && $? != 1) then
+                    set ncTOOL_SIZE[$i] = 3200 
+					
+                endif
+                ###########################################################################
+                if ( $compare_value != 1 ) then 
+                    set tmp_list = ()
+                    set tmp = ` cat $file_path/save_info1 `
+                    set tmp_list = ($tmp_list $tmp)
+                    set r = 1 
+                    while ( $r <= $#tmp_list)
+                        set size_left = ` echo $tmp_list[$r] | cut -d "=" -f1 `
+                        set size_right = ` echo $tmp_list[$r] | cut -d "=" -f2 `
+                        if ( $ncTOOL_SIZE[$i] == $size_left ) then
+                            set ncTOOL_SIZE[$i] = $size_right
+                        endif
+                    @ r++
+                    end
+                endif
+                ###########################################################################
+                if ( $ncTOOL_SIZE[$i] =~ *.* ) then
+                    set num1 = ` echo $ncTOOL_SIZE[$i] | cut -d "." -f2 `
+                    set num2 = ` echo $num1 |awk '{print length($1)}' `
+                    set num = ` echo $num2 |awk '{print $1+3}' `
+                else
+                    set num = 3
+                endif
+                if ( $i < 10 ) then
+                    set tool_unit = `echo "scale = $num; $ncTOOL_SIZE[$i] / 1000" | bc`
+                    set first_t = ` echo $tool_unit | cut -c1`
+                    if ( $first_t =~ "." ) then
+                        echo "T0"${ncTOOL_NUM[$i]}"C0"$tool_unit >> $ncHEADER_PATH
+                    else 
+                        echo "T0"${ncTOOL_NUM[$i]}"C"$tool_unit >> $ncHEADER_PATH
+                    endif
+                else
+                    set tool_unit = `echo "scale = $num; $ncTOOL_SIZE[$i] / 1000" | bc`
+                    set first_t = ` echo $tool_unit | cut -c1`
+                    if ( $first_t =~ "." ) then
+                        echo "T"${ncTOOL_NUM[$i]}"C0"$tool_unit >> $ncHEADER_PATH 
+                    else 
+                        echo "T"${ncTOOL_NUM[$i]}"C"$tool_unit >> $ncHEADER_PATH 
+                    endif
+                endif
+                @ i++
+            end
+        endif
+        echo "%" >> $ncHEADER_PATH
+    endif
+
+    if ( $ncEOF_PATH != "") then
+        echo "$ncEOF_PATH" >> /tmp/fox
+        if ($ncLAYER == drl ) then
+            echo M28 >  $ncEOF_PATH
+            echo M97,8888 >>  $ncEOF_PATH
+            echo M29 >>  $ncEOF_PATH
+            echo M30 >> $ncEOF_PATH
+        endif
+    endif
+

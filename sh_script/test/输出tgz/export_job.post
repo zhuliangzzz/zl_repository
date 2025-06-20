@@ -1,0 +1,101 @@
+#!/opt/ActivePerl-5.14/bin/perl -w
+#!/usr/bin/perl -w
+
+#COM export_job,job=s02904pn075a1-neo,path=/home/Incam/,mode=tar_gzip,submode=full,format=incam,overwrite=yes,output_name=s02904pn075a1-neo1
+#COM export_job,job=s02904pn075a1-neo,path=/home/Incam/,mode=tar_gzip,submode=full,format=genesis,overwrite=yes,output_name=s02904pn075a1-neo
+#set lnPARAM = ('job'                   'path'                  'mode'                  'submode'               'units'                 'use_placed_comp_only'  'del_elements'          'steps_mode'            'steps'                 'lyrs_mode'             'lyrs'                  'format'                'overwrite'             'output_name'           )
+#set lnVAL   = ('s27406py373a1+tgz_hyp' '/home/Incam/Desktop/'  'tar_gzip'              'full'                  'metric'                'no'                    ''                      'include'               ''                      'include'               ''                      'incam'                 'yes'                   's27406py373a1+tgz_hyp' )
+
+#use strict;
+#use warnings;
+
+BEGIN{
+	if ( defined $ENV{INCAM_PRODUCT} ) {
+		$ENV{CAMLIB} = "$ENV{INCAM_PRODUCT}/app_data/perl";
+	} else {
+		if ( defined $ENV{GENESIS_DIR} and defined $ENV{GENESIS_VER}) {
+			$ENV{CAMLIB} = "$ENV{GENESIS_DIR}/e$ENV{GENESIS_VER}/all/perl";
+		}
+	}
+	push (@INC,$ENV{CAMLIB});
+
+	if ( defined $ENV{INCAM_SITE_DATA_DIR} ) {
+		$ENV{NeoM} = "$ENV{INCAM_SITE_DATA_DIR}/scripts/User/Neo/Misc/Modules";
+		push (@INC,$ENV{NeoM});
+	}
+
+	use File::Basename;
+	$ENV{CURRSCRIPTPATH} = dirname($0);
+	$ENV{CURRSCRIPTPATH} =~ s#\\#/#g;
+	push (@INC,$ENV{CURRSCRIPTPATH});
+}
+
+unless ( defined $ENV{GENESIS_TMP} and defined $ENV{INCAM_TMP} ){
+	$ENV{"GENESIS_TMP"} = $ENV{INCAM_TMP};
+}
+
+#our $JOB  = $ENV{JOB};
+#our $STEP = $ENV{STEP};
+#use Genesis;
+#our $f = new Genesis();
+
+use File::Basename;
+#use Tkx;在output_tgz.pl脚本中调用时会报错，找不到模块,2019.12.5李家兴取消
+use Tk;
+use utf8;
+use File::stat;
+use NeoM;
+
+
+our %HooksParam;
+if (! -f $ARGV[0]) {
+	# 正式调用hooks时，$ARGV[0]一定是一个文件，在脚本中调用hooks时，可能会传入某个参数，
+	# 当然这个参数也有可能是文件，如果是文件的话，按else语块中进行文件解析就可以了。
+	# 2019.12.5李家兴修改此项，为了在output_tgz.pl脚本中调用hooks功能
+	# configuration选项gen_line_skip_post_hooks已经设定为"2",script运行时不调用hooks
+	my $string_hash = $ARGV[0];
+	my $ref_hash = eval $string_hash;
+	# 为了后续取值一致，从hash引用重构hash
+	foreach my $key (keys %$ref_hash) {
+		$HooksParam{$key} = $ref_hash->{$key};
+	}
+	print "\%HooksParam : $HooksParam{job} $HooksParam{path}\n";
+} else {
+	%HooksParam = &iHooksParamConv;
+	print "\%HooksParam : $HooksParam{job} $HooksParam{path}\n";
+}
+
+my $TgzFileMaxSize = 300 ;
+if ( $HooksParam{mode} eq 'tar_gzip' ) {
+	my $TzgPath = $HooksParam{path} . '/' . $HooksParam{output_name} . '.tgz';
+	if ( -f $TzgPath ){
+		my $tFiletFileSize = sprintf("%.1f",igFileSize($TzgPath) / ( 1024**2 ) ) ;
+		if ( $tFiletFileSize > $TgzFileMaxSize ){
+			# iTkxMsgBox('Tgz输出大小提示',
+			# '料号:' . $HooksParam{job} . "\n"
+			# . '导出Tgz大小为' . $tFiletFileSize . 'MB,' . "\n"
+			# . '>' .$TgzFileMaxSize . 'MB,'
+			# . '请删除废层别、Step以及去除Checklist后再导出!!!'
+			# ,'ok','warning',);
+			&DialogWindow(			
+			'料号:' . $HooksParam{job} . "\n"
+			. '导出Tgz大小为' . $tFiletFileSize . 'MB,' . "\n"
+			. '>' .$TgzFileMaxSize . 'MB,'
+			. '请删除废层别、Step以及去除Checklist后再导出!!!'
+			);
+		}
+	}
+}
+
+sub DialogWindow
+{
+    my ($content,$bg,$fg) = @_;
+    $bg = '#d9d9d9' unless ($bg);
+    $fg = 'black' unless ($fg);
+    require Tk::Dialog;
+    my $warn_win = MainWindow->new(-title =>"胜宏科技");
+    $warn_win->Dialog(-title=>'Tgz输出大小提示', -text => $content, -default_button => 'Ok', -buttons => ['Ok'], -bitmap => 'error', -font => 'monospace 12', -bg => $bg, -fg => $fg, -command => sub{$warn_win -> destroy;} ) -> Show ();
+    MainLoop;
+    return 1;
+}
+

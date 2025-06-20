@@ -1,0 +1,223 @@
+#!/usr/bin/env python
+# encoding: utf-8
+# -*- coding: utf-8 -*-
+# ---------------------------------------------------------#
+#               VTG.SH SOFTWARE GROUP                     #
+# ---------------------------------------------------------#
+# @Author       :    唐成
+# @Mail         :
+# @Date         :    2021/04/15
+# @Revision     :    1.0
+# @File         :
+# @Software     :    PyCharm
+# @Usefor       :    
+# @Revision     :    1.0
+# @Modify V1.1 2022.09.05 Song 部分重构，增加了直接退出，skip_current_command 不需要文件中转
+# ---------------------------------------------------------#
+
+
+import sys, platform, os, re, shutil, random
+import time
+import socket
+from PyQt4 import QtCore, QtGui
+
+if (platform.system() == "Windows"):
+    sys.path.append(r"Z:/incam/genesis/sys/scripts/Package")
+elif (platform.system() == 'Linux'):
+    sys.path.append(r"/incam/server/site_data/scripts/Package")
+else:
+    print("不是在 linux 系统或windows系统下运行脚本，脚本无法运行")
+    sys.exit()
+    
+import MySQL_DB
+import genCOM_26 as genCOM
+from messageBox import msgBox
+
+from mwClass_V2 import AboutDialog
+
+import MySQL_DB
+conn = MySQL_DB.MySQL()
+dbc_m = conn.MYSQL_CONNECT(hostName='192.168.2.19', database='hdi_engineering', prod=3306,
+                           username='root', passwd='k06931!')
+dbc_p = conn.MYSQL_CONNECT(hostName='192.168.2.19', database='project_status', prod=3306,
+                           username='root', passwd='k06931!')
+
+def send_message_to_director(result, job_name):
+    """发送审批结果界面 20221122 by lyh"""
+    submitData = {
+        'site': u'HDI板事业部',
+        'job_name': job_name,
+        'pass_tpye': 'CAM',
+        'pass_level': 8,
+        'assign_approve': '44566|44024|84310|83288',
+        'pass_title': result,
+    }
+    Dialog = AboutDialog(submitData['pass_title'], cancel=True, appCheck=True, appData=submitData)
+    Dialog.exec_()
+    # endregion
+
+    # --根据审批的结果返回值
+    if Dialog.selBut in ['x', 'cancel']:
+        return False
+    if Dialog.selBut == 'ok':
+        return True
+    
+    return False
+
+
+app = QtGui.QApplication(sys.argv)
+
+class rename_entity(object):
+    def __init__(self, perent=None):        
+
+        self.job_name = os.environ.get("JOB")
+        self.step_name = os.environ.get("STEP")
+        self.GEN = genCOM.GEN_COM()
+
+        my_file = sys.argv[1]
+        hook_tmp_file = my_file
+        self.hook_dict = self.get_parm_dict(hook_tmp_file)
+        # {'new_name': 'edit', 'name': 'edit++', 'is_fw': 'no', 'fw_type': 'form', 'job': 'hd5606gi013a1-lyh', 'type': 'step'}
+        
+        # {'new_name': 'hd5606gi013a1-lyh1', 'name': 'hd5606gi013a1-lyh', 'is_fw': 'no', 'fw_type': 'form', 'job': 'hd5606gi013a1-lyh', 'type': 'job'}
+        
+        print self.hook_dict
+        
+    def get_rename_job_previs(self, user, authority_name):
+        sql = "select * from hdi_engineering.incam_user_authority "
+        self.check_data_info = conn.SELECT_DIC(dbc_m, sql)
+        for dic_info in self.check_data_info:
+            if str(dic_info["user_id"]) == user:
+                if dic_info["Authority_Name"] == authority_name and \
+                   dic_info["Authority_Status"] ==u"是":
+                    return True
+                
+        return False
+        
+    def main(self):        
+        if self.hook_dict["type"] == "step":
+            if self.hook_dict["name"] == "net":
+                #self.GEN.COM('get_user_priv')
+                #userpriv = self.GEN.COMANS
+                self.GEN.COM('get_user_name')
+                username = self.GEN.COMANS
+                # if userpriv < 95 and username not in ["68233", "44566"]:
+                if not self.get_rename_job_previs(username, u"修改net名"):                    
+                    self.GEN.COM('skip_current_command')
+                    msg_box = msgBox()
+                    msg_box.critical(self, '警告', "{0}无法执行操作::只有管理员才有权限改名net！".format(username), QtGui.QMessageBox.Ok)
+                    exit(0)
+                    
+        if self.hook_dict["type"] == "job":
+            self.GEN.COM('get_user_name')
+            IncamUser = self.GEN.COMANS
+            
+            #检查料号名是否符合规则 18.4.9 by Neo
+            word_list = "abcdefghijklmnopqrstuvwxyz0123456789+-.-_"
+            for word in self.hook_dict["new_name"]:
+                if word not in word_list:
+                    self.GEN.COM('skip_current_command')
+                    msg_box = msgBox()
+                    msg_box.critical(self, '警告', "Job名称有误::JOB:{0}    JOB名称只能由 小写字母、数字、+-_. 组成， 请重新输入Job名！！！".format(self.hook_dict["job"]), QtGui.QMessageBox.Ok)
+                    exit(0)
+                    
+            #正式型号名修改权限限定20230905 by lyh
+            res = self.get_authorization(self.hook_dict["name"])
+            if res:                
+                # if IncamUser not in ["84310", "44024", "44566"]:
+                if not self.get_rename_job_previs(IncamUser, u"更改正式型号名"): 
+                    res = send_message_to_director(u"您无权修改正式命名的型号为临时型号，请找主管44566|44024|84310|83288修改 或者提交审核修改！！！", self.hook_dict["name"])
+                    if not res:
+                        self.GEN.COM('skip_current_command')
+                        #msg_box = msgBox()
+                        #msg_box.critical(self, '警告', "您无权修改正式命名的型号为临时型号，请找主管44566|44024|84310|83288修改！！！", QtGui.QMessageBox.Ok)
+                        exit(0)
+                    
+            #增加自动修复joblist 18.4.8 by Neo   # pre 检查 目录
+            SourceJob = self.hook_dict["name"]
+            DbutilPath = "{0}/bin/dbutil".format(os.environ["INCAM_PRODUCT"])
+            # res = subprocess.Popen("{0} path jobs {1}".format(DbutilPath, SourceJob), shell=True)
+            fd = os.popen("{0} path jobs {1}".format(DbutilPath, SourceJob))
+            try:                
+                JobPath = string.strip(fd.readlines()[0])
+            except:
+                JobPath = ""
+            FileExistStat = 'yes'
+            if JobPath == "":
+                FileExistStat = 'no'
+            else:
+                if not os.path.exists(JobPath):
+                    FileExistStat = 'no'
+            
+            # print "---------->", [JobPath], FileExistStat
+            if FileExistStat == "no":
+                DateTime = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+                HostName = socket.gethostname()
+                FixLogsPath = "{0}/scripts/Logs/Fix".format(os.environ["INCAM_SITE_DATA_DIR"])
+                FixLogsFile = "{0}/rename_entity.log".format(FixLogsPath)
+                
+                with open(FixLogsFile, "a") as f:
+                    f.write("pre	{0}	{1}	{2}	{3}\n".format(SourceJob, DateTime, IncamUser, HostName))
+
+                tFile = "/tmp/tFile{0}.log".format(os.getpid())
+                os.system("{0} check y >& {1}".format(DbutilPath, tFile))
+                os.system("cat {0} | grep -v 'Checking' | grep -v 'lock' | grep -v 'Lock' >> {1}".format(tFile, FixLogsFile))
+                os.system("rm -rf {0}".format(tFile))
+                
+                with open(FixLogsFile, "a") as f:
+                    f.write("\n")
+                    
+    def get_authorization(self, job_str):
+        """
+        在MySQL数据库中获取授权用户
+        :return:
+        """
+        # job_str = self.job_name
+        DB_M = MySQL_DB.MySQL()
+        dbc_m = DB_M.MYSQL_CONNECT(hostName='192.168.2.19', database='project_status', prod=3306, username='root',
+                                   passwd='k06931!', )
+        query_sql = u"""
+        select   cam_d_checker	CAM外层复审人,
+            cam_d_innerChecker	CAM内层复审人,
+            panel_maker	拼版人,
+            inner_maker	内层制作人,
+            outer_maker	外层制作人,
+            icheck_maker	内层审核人,
+            ocheck_maker	外层审核人,
+            input_maker	Input人,
+            input_checker	input审核人,
+            rout_maker	锣带制作人,
+            rout_checker	锣带检查人,
+            sub_maker	次外层制作人,
+            sub_check_maker	次外层审核人
+            from project_status_jobmanage psj
+            --  and project_status_jobmanage.COLUMNS cname
+        WHERE job = '%s'
+        order by id desc """ % job_str.upper()
+        query_result = DB_M.SELECT_DIC(dbc_m, query_sql)
+        
+        dbc_m.close()
+        if len(query_result) == 0:
+            return False
+        
+        return True
+        
+    def get_parm_dict(self, hook_tmp_file):
+        """
+        解析hooks临时文件，生成dict
+        :param hook_tmp_file:
+        :return:
+        """
+        lineList = open(hook_tmp_file, 'r').readlines()
+        # os.unlink (self.tmpfile)
+        infoDict = self.GEN.parseInfo(lineList)
+        # print infoDict
+        hook_dict = {}
+        if len(infoDict['lnPARAM']) > 0 and len(infoDict['lnVAL']) > 0:
+            for i, inparm in enumerate(infoDict['lnPARAM']):
+                hook_dict[inparm] = infoDict['lnVAL'][i]
+        return hook_dict
+
+if __name__ == "__main__":
+    BDL = rename_entity()
+    BDL.main()

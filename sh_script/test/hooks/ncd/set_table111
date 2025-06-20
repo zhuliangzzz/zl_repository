@@ -1,0 +1,415 @@
+#!/usr/bin/perl
+
+use Data::Dumper;
+use lib "$ENV{SCRIPTS_DIR}/sys/scripts/Package";
+use Encode;
+use utf8;
+use Genesis;
+use mainVgt;
+use VGT_Oracle;
+use DBI;
+my $f = new Genesis();
+my $c = new mainVgt();
+my $o = new VGT_Oracle();
+my $job_name = $ENV{JOB};
+if ($job_name =~ /(.*)-[a-z].*/i) {
+    $job_name = uc($1);
+}else{
+    $job_name = uc($job_name);
+}
+my $leg = length($job_name);
+
+#print ("$job_name\n");
+my $readFile = $ARGV[0];
+my $writeFile = $ARGV[1];
+
+###################################<<<set_table参数>>>##############################################
+#Script message: set ncLAYER = ('drl' )
+#Script message: set ncSET = ('1' )
+#Script message: set ncMACHINE = ('excellon' )
+#Script message: set ncTHICKNESS = ('0' )
+#Script message: set ncSHAPE        = ('hole'   'hole'   'hole'   )
+#Script message: set ncTYPE         = ('Via'    'Plate'  'Plate'  )
+#Script message: set ncSIZE         = ('11.811' '41.339' '45.276' )
+#Script message: set ncTOUCH_COPPER = ('no'     'no'     'no'     )
+#Script message: set ncFLAG         = ('0'      '0'      '0'      )
+#Script message: set ncCOUNT        = ('137'    '5'      '2'      )
+#Script message: set ncSLOTLEN      = ('0'      '0'      '0'      )
+#Script message: set ncPLUS_TOL     = ('0'      '0'      '0'      )
+#Script message: set ncMINUS_TOL    = ('0'      '0'      '0'      )
+#Script message: set ncFINISH_SIZE  = ('11.81'  '35.43'  '39.37'  )
+#Script message: set ncDESIGNATOR   = ('0.30'   '1.05'   '1.15'   )
+######################################################################################################
+
+# -->读取set_table列表信息
+open (PARAM_FILE,  "$readFile") or warn "Cannot open info file -$readFile: $!\n";
+my @drl_info = <PARAM_FILE>;
+close (PARAM_FILE);
+my %drl_table_info;
+my $machine_info;
+my $drl_layer;
+
+my @GetHDIDrillBZ=GetHDIInPlanDrillInfo(); #获取HDI钻嘴表的备注信息
+
+foreach my $info(@drl_info){
+	
+    if ($info =~ /ncLAYER/) {
+        chomp $info;
+        my @shape = split("=",$info);
+        $shape[1] =~ s/\'/ /g;
+        $shape[1] =~ s/\(/ /g;
+        $shape[1] =~ s/\)/ /g;
+        my @SHAPE = split(" ",$shape[1]);
+        $drl_layer = $SHAPE[0];
+    }elsif($info =~ /ncMACHINE/) {
+        chomp $info;
+        my @shape = split("=",$info);
+        $shape[1] =~ s/\'/ /g;
+        $shape[1] =~ s/\(/ /g;
+        $shape[1] =~ s/\)/ /g;
+        my @SHAPE = split(" ",$shape[1]);
+        $machine_info = $SHAPE[0];
+    }elsif($info =~ /ncSHAPE/) {
+        chomp $info;
+        my @shape = split("=",$info);
+        $shape[1] =~ s/\'/ /g;
+        $shape[1] =~ s/\(/ /g;
+        $shape[1] =~ s/\)/ /g;
+        my @SHAPE = split(" ",$shape[1]);
+        my $order = 1;
+		
+        foreach my $shape_info(@SHAPE){
+            if ($shape_info) {
+                #print ("$shape_info\n");
+                $drl_table_info{$order}{shape} = $shape_info;
+                $drl_table_info{$order}{leap} = 0;
+            }
+            $order ++;
+        }
+    }elsif($info =~ /ncSIZE/){
+        chomp $info;
+        my @shape = split("=",$info);
+        $shape[1] =~ s/\'/ /g;
+        $shape[1] =~ s/\(/ /g;
+        $shape[1] =~ s/\)/ /g;
+        my @SHAPE = split(" ",$shape[1]);
+        my $order = 1;
+		
+        foreach my $shape_info(@SHAPE){
+            if ($shape_info) {
+                #print ("$shape_info\n");
+                $drl_table_info{$order}{size} = $shape_info;
+                
+                # -->大于6.35mm需要扩孔
+                # -->背钻输出时大于6.35mm孔径不需要扩孔  AresHe 需求来源:http://192.168.2.120:82/zentao/story-view-2201.html
+				# -->有喇叭孔的情况下， 6.35 的孔不需要扩孔 # 2022.03.01 http://192.168.2.120:82/zentao/story-view-3938.html
+				if ($shape_info > 250 and $drl_layer !~ /backdrill/) {
+                    $drl_table_info{$order}{mode} = 'nibble';
+					if ($shape_info > 250 and (grep /喇叭/,@GetHDIDrillBZ)){
+						$drl_table_info{$order}{mode} = 'regular';
+					}
+                
+                }else{
+					$drl_table_info{$order}{mode} = 'regular';
+					
+				}
+            }
+			
+            $order ++;
+        }
+    }elsif($info =~ /ncCOUNT/){
+        chomp $info;
+        my @shape = split("=",$info);
+        $shape[1] =~ s/\'/ /g;
+        $shape[1] =~ s/\(/ /g;
+        $shape[1] =~ s/\)/ /g;
+        my @SHAPE = split(" ",$shape[1]);
+        my $order = 1;
+        foreach my $shape_info(@SHAPE){
+            if ($shape_info) {
+                #print ("$shape_info\n");
+                $drl_table_info{$order}{count} = $shape_info;
+            }
+            $order ++;
+        }
+    }elsif($info =~ /ncFLAG/){
+        chomp $info;
+        #print ("$info\n");
+        my @shape = split("=",$info);
+        $shape[1] =~ s/\'/ /g;
+        $shape[1] =~ s/\(/ /g;
+        $shape[1] =~ s/\)/ /g;
+        my @SHAPE = split(" ",$shape[1]);
+        my $order = 1;
+        foreach my $shape_info(@SHAPE){
+            $drl_table_info{$order}{type} = $shape_info;
+            $order ++;
+        }
+    }
+}
+
+my $site_info = &get_site_info();
+$site_info = decode('utf8',$site_info);
+# --连接InPlan oracle数据库
+my %drill_inplan_info;
+# if ($drl_layer =~ /^drl$|^drl-out$/ and $drl_layer !~ /^drl-sz/){
+    # # -->固定默认一般情况下只有drl层才会跳钻,其他层不存在跳钻情况
+    # %drill_inplan_info = &get_inplan_info;
+# }
+
+my $new_layer;
+if ($drl_layer =~ /^(drl|[b|m](\d+)(-)?(\d+))(-out)?$/ and $site_info ne "HDI事业部"){
+    # --修改日期:2021.11.15
+    # --新增盲、埋孔层跳钻信息获取
+    # --多层输出时如果有text字体,系统将自动更改层名,后缀"-out"(因多层钻孔输出会flatten_layer,如drl层输出,当有钻字时会flatten成drl-out)
+    $new_layer = $drl_layer =~ /(.*)-out$/ ? $1 : $drl_layer;
+    %drill_inplan_info = &get_inplan_info($drl_layer,$new_layer);
+}
+
+# -->写入out_file
+open(SETTABLE,">$writeFile") or die "can't open file $writeFile: $!";
+my $ord = 1;
+foreach my $output_file(keys %drl_table_info){
+    if ($drl_table_info{$ord}{size}) {
+        if ($machine_info eq 'excellon-lp') {
+            print SETTABLE "$ord $drl_table_info{$ord}{size} n $drl_table_info{$ord}{mode} 300 85 machine 1 sep 500 $ord\n";
+        }else{
+            if ($drl_table_info{$ord}{shape} eq 'hole') {
+                # -->抓取到跳钻信息则自动填入到set_table
+                my $leap_space;
+                if (%drill_inplan_info) {
+                    foreach my $info (keys %drill_inplan_info){
+                        my $drill_size = $drl_table_info{$ord}{size} * 25.4;
+                        $drill_size = sprintf "%.f",$drill_size;
+                        my $tol_size = abs($drill_size - $drill_inplan_info{$info}{size});
+                        if ($drl_table_info{$ord}{type} ne '0' && $drill_inplan_info{$info}{layer_name} eq $drl_layer && $tol_size < 5) {
+                            
+                            $leap_space = $drill_inplan_info{$info}{leap};
+                        }
+                    }
+                }
+                
+                # --HDI事业部通孔板"drl"层,后台系统默认via小于0.35孔且尾数带9钻咀,跳钻间距按200mil调整。含所有料号  AresHe 2021.11.15
+                # == HDI事业部通孔板"drl"层,后台系统默认via小于等于0.35孔且尾数带3钻咀,跳钻间距按100mil调整 Song http://192.168.2.120:82/zentao/story-view-4327.html
+				# http://192.168.2.120:82/zentao/story-view-4327.html 之前跳钻只识别3结尾的孔跳钻，现在需增加-0.02mm的孔也需要跳钻。 20231113 by lyh
+				# 周涌通知 按孔径0.15，0.175，0.2，0.225，0.25，0.275，0.3，0.325，0.35来匹配-0.002的孔 20231113 by lyh
+                my $drillSize = $drl_table_info{$ord}{size} * 25.4;
+                $drillSize = sprintf "%.f",$drillSize;
+                if ($site_info eq "HDI事业部" and $drl_layer =~ /^(drl|b(\d+)(-)?(\d+))(-out)?$/ and $drillSize < 350 and $drillSize =~ /9$/){
+                    print SETTABLE "$ord $drl_table_info{$ord}{size} n $drl_table_info{$ord}{mode} 300 85 machine 1 sep 500 0 $ord 0 0 200\n";
+                } elsif ($site_info eq "HDI事业部" and $drl_layer =~ /^(drl|b(\d+)(-)?(\d+))(-out)?$/ and $drillSize < 360 and $drillSize =~ /3$/){
+                    print SETTABLE "$ord $drl_table_info{$ord}{size} n $drl_table_info{$ord}{mode} 300 85 machine 1 sep 500 0 $ord 0 0 100\n";
+                } elsif ($site_info eq "HDI事业部" and $drl_layer =~ /^(drl|b(\d+)(-)?(\d+))(-out)?$/ and $drillSize < 360 and $drillSize =~ /148|173|198|223|248|273|298|323|348/){
+                    print SETTABLE "$ord $drl_table_info{$ord}{size} n $drl_table_info{$ord}{mode} 300 85 machine 1 sep 500 0 $ord 0 0 100\n";
+				} else{					
+					if ( -e "/tmp/cool_speed_$ENV{JOB}_${drl_layer}_${drillSize}.info"){										
+						#抓取临时跳钻信息文件来设置是否跳钻 20221212 by lyh
+						open(STAT, "/tmp/cool_speed_$ENV{JOB}_${drl_layer}_${drillSize}.info") or die "can't open file /tmp/cool_speed_$ENV{JOB}_${drl_layer}_${drillSize}.info: $!";
+						while (<STAT>) {
+							chomp $_;
+							$leap_space=$_;
+						}
+						close(STAT);							
+						print SETTABLE "$ord $drl_table_info{$ord}{size} n $drl_table_info{$ord}{mode} 300 85 machine 1 sep 500 0 $ord 0 0 $leap_space\n";
+					}else {
+						print SETTABLE "$ord $drl_table_info{$ord}{size} n $drl_table_info{$ord}{mode} 300 85 machine 1 sep 500 0 $ord 0 0 $leap_space\n";
+					}
+                }
+            }else{
+                print SETTABLE "$ord $drl_table_info{$ord}{size} n $drl_table_info{$ord}{mode} 300 85 machine 2 sep 500 $ord\n";
+            }
+        }
+    }
+    $ord ++;
+}
+close (SETTABLE);
+print ("$drl_layer\n");
+#print Dumper(%drl_table_info);
+print Dumper(%drill_inplan_info);
+print ("done\n");
+
+######################################################################################################
+# -->连接inplan数据库,获取钻孔信息(钻咀大小、孔数、跳钻间距)
+sub sql_process {
+    my ($dbc_i,$sql,$layer) = @_;
+    # 预处理sql语句,结果保存在$sth中
+    my $sth = $dbc_i->prepare($sql);
+    $sth->execute() or die "无法执行SQL语句:$dbc_i->errstr";
+    # --循环所有行数据
+    my %drill_info;
+    while (my @recs = $sth->fetchrow_array) {
+        
+        # -->检测到钻孔跳钻栏位有数据时才截取
+        if ($recs[9]) {
+            #print Dumper(@recs);
+            
+            # -->多层输出时如果有text字体,系统将自动更改层名,后缀"-out"(因多层钻孔输出会flatten_layer,如drl层输出,当有钻字时会flatten成drl-out)
+            # $drill_info{$recs[2]}{layer_name} = $recs[1].'-out';
+            $drill_info{$recs[2]}{layer_name} = $layer;
+            $drill_info{$recs[2]}{size} = $recs[5] * 1000;
+            
+            # --正常跳钻间距
+            my $leap = $recs[9];
+            $drill_info{$recs[2]}{leap} = $leap * 1000 / 25.4;
+            
+            # --跳钻为5mm时,系统后台统一加大0.01,调整到5.01(5010)。 2021.9.6 杨文军要求
+            # --调整背景:因系统软体原因,跳钻5mm时,可能发生跳钻间距无限放大异常(参考料号:A57*072A1)
+            if  ($leap == 5){
+                $drill_info{$recs[2]}{leap} = ($leap + 0.01) * 1000 / 25.4;
+            }
+            
+            # -->获取同一把刀孔数
+            if ($drill_info{$recs[2]}{count}) {
+                $drill_info{$recs[2]}{count} = $drill_info{$recs[2]}{count} + $recs[6];
+            }else{
+                $drill_info{$recs[2]}{count} = $recs[6];
+            }
+        }
+    }
+    # -->返回所有有跳钻信息列表信息(钻咀大小、孔数、跳钻间距)
+    return %drill_info;
+}
+
+sub get_inplan_info{
+    my ($drl_layer,$layer) = @_;
+    my $dbc_i = $o->CONNECT_ORACLE('host'=>'192.168.2.18', 'service_name'=>'inmind.fls', 'port'=>'1521', 'user_name'=>'GETDATA', 'passwd'=>'InplanAdmin');
+    if (! $dbc_i){
+        $c->Messages('warning', '"InPlan数据库"连接失败->程序终止!');
+        exit(0);
+    }
+    
+    my $sql = "
+        select a.item_name,
+                c.item_name,
+                f.name,
+                decode(f.type,4,'Plated Slot',0,'PTH',1,'Via',2,'NPTH',3,'Micro Via',5,'Non-Plated Slot') as 钻孔属性,
+                ROUND(f.finished_size/39.37,4) as 成品孔径,
+                ROUND(f.actual_drill_size/39.37,4) as  钻咀,
+                f.panel_count  as Panel孔数,
+                f.pcb_count as PCS孔数,
+                g.ERP_FINISH_SIZE_ as 备注,
+                ROUND(g.JUMP_DRILL_SPACE_/39.37,4) as 跳钻距离
+         from vgt.items a
+              inner join vgt.job b
+              on a.item_id = b.item_id
+              and  a.last_checked_in_rev = b.revision_id
+              inner join vgt.items c
+              on a.root_id = c.root_id
+              inner join vgt.drill_program d
+              on c.item_id = d.item_id 
+              and c.last_checked_in_rev = d.revision_id
+              inner join vgt.drill_hole f
+              on d.item_id = f.item_id 
+             and d.revision_id = f.revision_id
+              inner join vgt.drill_hole_da g
+              on f.item_id = g.item_id 
+             and f.revision_id = g.revision_id
+             and f.sequential_index=g.sequential_index
+             where  a.item_name = '$job_name'
+             and (g.ERP_FINISH_SIZE_ like '%跳钻%' or g.ERP_FINISH_SIZE_ like '%跳刀%')
+             and c.item_name = '$layer'
+             order by c.item_name,f.name";
+    my %drill_inplan = &sql_process($dbc_i,$sql,$drl_layer);
+    return %drill_inplan;
+}
+
+sub get_site_info{
+    my $dbc_m = $o->CONNECT_MYSQL('host'=>'192.168.2.19', 'dbname'=>'project_status', 'port'=>'3306', 'user_name'=>'root', 'passwd'=>'k06931!');
+    if (! $dbc_m)
+    {
+        $c->Messages('warning', '"工程数据库"连接失败-> 程序终止!');
+        exit(0);
+    }
+    
+    my $sql = "
+            select 
+                job,Org_code,site,create_time
+            from 
+                project_status_jobmanage 
+            where 
+                job = '$job_name'
+            AND 
+                if_cancle = '正常' 
+            AND 
+                is_delete = '0'";
+    my $site = &get_site_sql($dbc_m,$sql);
+    return $site;
+}
+
+sub get_site_sql {
+    my ($dbc_m,$sql) = @_;
+    # 预处理sql语句,结果保存在$sth中
+    my $sth = $dbc_m->prepare($sql);
+    $sth->execute() or die "无法执行SQL语句:$dbc_m->errstr";
+    # --循环所有行数据
+    # --返回获取事业部信息
+    while (my @recs = $sth->fetchrow_array){
+        # print ("\$recs[0] $recs[0] \$recs[3] $recs[3]\n");
+        if ($recs[1]){
+            return $recs[1];
+        }
+    }
+}
+#获取hdiinplan的钻孔备注
+sub GetHDIInPlanDrillInfo{
+	my $dbc_i = $o->CONNECT_ORACLE('host'=>'172.20.218.193', 'service_name'=>'inmind.fls', 'port'=>'1521', 'user_name'=>'GETDATA', 'passwd'=>'InplanAdmin');
+    if (! $dbc_i){
+        $c->Messages('warning', '"InPlan数据库"连接失败->程序终止!');
+       exit(0);
+    }
+	my $sql = "
+        SELECT
+        	item_for_job.item_name,
+        	dp_da.DRILL_LAYER_,
+        	drill_hole.name,
+        	TYPE_ENUM.value TYPE,
+        	drill_hole.length,
+        CASE
+        	WHEN TYPE_ENUM.value LIKE '%N%' THEN
+        	'N' ELSE 'Y' 
+        	END PLATING_TYPE,
+        	drill_hole.ACTUAL_DRILL_SIZE,
+        	DRILL_TYPE_enum.value DRILL_TYPE_， drill_hole_da.ERP_FINISH_size_ 
+        FROM
+        	VGT_HDI.all_items all_items,
+        	VGT_HDI.items item_for_job,
+        	VGT_HDI.items item_for_dp,
+        	VGT_HDI.DRILL_HOLE drill_hole,
+        	VGT_HDI.DRILL_HOLE_DA drill_hole_da,
+        	VGT_HDI.drill_program_da dp_da,
+        	VGT_HDI.field_enum_translate DRILL_TYPE_ENUM,
+        	VGT_HDI.field_enum_translate TYPE_ENUM 
+        WHERE
+        	item_for_job.item_name ='$job_name'
+        	AND all_items.item_type = 5 
+        	AND all_items.root_id = item_for_job.root_id 
+        	AND item_for_job.item_type = 2 
+        	AND item_for_dp.item_type = 5 
+        	AND item_for_dp.root_id = item_for_job.root_id 
+        	AND dp_da.item_id = item_for_dp.item_id 
+        	AND dp_da.revision_id = all_items.revision_id 
+        	AND drill_hole.item_id = all_items.item_id 
+        	AND drill_hole.revision_id = all_items.revision_id 
+        	AND drill_hole_da.item_id = all_items.item_id 
+        	AND drill_hole_da.revision_id = all_items.revision_id 
+        	AND drill_hole.sequential_index = drill_hole_da.sequential_index 
+        	AND DRILL_TYPE_ENUM.intname = 'DRILL_HOLE' 
+        	AND DRILL_TYPE_ENUM.fldname = 'DRILL_TYPE_' 
+        	AND DRILL_TYPE_ENUM.enum = drill_hole_da.DRILL_TYPE_ 
+        	AND TYPE_ENUM.intname = 'DRILL_HOLE' 
+        	AND TYPE_ENUM.fldname = 'TYPE' 
+        	AND TYPE_ENUM.enum = drill_hole.TYPE";
+
+	my $sth = $dbc_i->prepare($sql);
+	my @bez;
+	$sth->execute() or die "Can't prepare statement: $DBI::errstr";
+	while (my @recs = $sth->fetchrow_array) {
+		push @bez,$recs[8];
+		
+	}
+	#$c->Messages('warning', "@bez");
+	$dbc_i->disconnect or warn "DB disconnect failed: $DBI::errstr\n";
+	return @bez;
+}
+
+    

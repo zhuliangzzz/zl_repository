@@ -1,0 +1,193 @@
+#!/usr/bin/env python
+# encoding: utf-8
+# -*- coding: utf-8 -*-
+# ---------------------------------------------------------#
+#               VTG.SH SOFTWARE GROUP                     #
+# ---------------------------------------------------------#
+# @Author       :    唐成
+# @Mail         :
+# @Date         :    2021/04/15
+# @Revision     :    1.0
+# @File         :
+# @Software     :    PyCharm
+# @Usefor       :    matrix_delete_row 前检查是否允许删除
+# @Revision     :    1.0
+# @Modify V1.1 2022.09.05 Song 部分重构，增加了直接退出，skip_current_command 不需要文件中转
+# 20241204 zl 去细丝所保存的铜皮层不允许删除
+# ---------------------------------------------------------#
+
+
+import sys, platform, os, re, shutil, random
+
+from PyQt4 import QtGui
+# from PyQt4.QtGui import QListView
+# from PyQt4.QtCore import Qt
+# from PyQt4 import QtCore
+# from PyQt4.QtCore import QStringList
+
+if (platform.system() == "Windows"):
+    sys.path.append(r"Z:/incam/genesis/sys/scripts/Package")
+elif (platform.system() == 'Linux'):
+    sys.path.append(r"/incam/server/site_data/scripts/Package")
+else:
+    # self.QMessageBoxWaning("系统异常", "不是在 linux 系统或windows系统下运行脚本，脚本无法运行");
+    print("不是在 linux 系统或windows系统下运行脚本，脚本无法运行")
+    sys.exit()
+
+import genCOM_26 as genCOM
+
+reload(sys)
+sys.setdefaultencoding("utf-8")
+GEN = genCOM.GEN_COM()
+from messageBox import msgBox
+
+
+class befor_delete_layer_handle(object):
+    def __init__(self, perent=None):
+        #
+        self.app = QtGui.QApplication(sys.argv)
+        # super(befor_delete_layer_handle, self).__init__(perent)
+
+        self.job_name = os.environ.get("JOB")
+        self.step_name = os.environ.get("STEP")
+        self.GEN = genCOM.GEN_COM()
+        # self.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint)
+        my_file = sys.argv[1]
+        hook_tmp_file = my_file
+        self.hook_dict = self.get_parm_dict(hook_tmp_file)
+        # {'job': 'hd3706ge019a1-song', 'matrix': 'matrix', 'layer': '', 'row': '17'}
+        # print self.hook_dict
+
+    def main(self):
+
+        # # QMessageBox.warning(self, u"错误提示", u"argv :%s" % (sys.argv));
+        # f_line_list = open(my_file, "r").readlines();
+        # # 找到删除的层名字
+        # use_delete_layer = None;
+        # use_delete_row_num = None;
+        # use_delete_row_context = None;
+        # for line in f_line_list:
+        #     if (line.startswith('set lnVAL')):
+        #         split_list = line.split("'");
+        #         if (len(split_list[5]) > 0):
+        #             use_delete_row_num = int(split_list[5]);  # 取得删除的层名字
+        use_delete_row_num = self.hook_dict['row']
+        # 如果没有找到层就退出检测
+        if not use_delete_row_num:
+            return
+        # 查询层名字是否正确
+        job_matrix_data = self.GEN.DO_INFO("-t matrix -e %s/matrix -d ROW" % (self.job_name))
+        gROWrow_list = job_matrix_data.get("gROWrow")
+        gROWname_list = job_matrix_data.get("gROWname")
+        gROWcontext_list = job_matrix_data.get("gROWcontext")
+        use_delete_row_context = ''
+        use_delete_layer = ''
+        # for index_num,use_delete_layer in enumerate(gROWcontext_list):
+        #     if int(use_delete_row_num) == int(gROWrow_list[index_num]):
+        index_num = int(use_delete_row_num) - 1
+        use_delete_layer = gROWname_list[index_num]
+        use_delete_row_context = gROWcontext_list[index_num]
+        # print 'use_delete_layer',use_delete_layer,'use_delete_row_context',use_delete_row_context
+        # break
+        not_allowd_layer = ''
+        # 如果是board层就不允许删除
+        if (use_delete_row_context == "board"):
+            not_allowd_layer = use_delete_layer
+            # self.not_allowed_layer(use_delete_layer, use_delete_row_num)
+        else:  # 如果是misc层就要检测名字
+            misc_dont_delete_name_dict = self.misc_dont_delete_name()
+            if (use_delete_layer in misc_dont_delete_name_dict):
+                not_allowd_layer = use_delete_layer
+
+                # self.not_allowed_layer(use_delete_layer, use_delete_row_num)
+            elif (self.dont_delete_name_by_re(use_delete_layer)):  # 如果固定名字没有找到层，就用正则找下
+                # self.not_allowed_layer(use_delete_layer, use_delete_row_num)
+                not_allowd_layer = use_delete_layer
+
+        if not_allowd_layer:
+            self.GEN.COM('skip_current_command')
+            msg_box = msgBox()
+            msg_box.warning(None, '警告', '层别：%s,不允许删除' % not_allowd_layer , QtGui.QMessageBox.Ok)
+
+    def get_parm_dict(self, hook_tmp_file):
+        """
+        解析hooks临时文件，生成dict
+        :param hook_tmp_file:
+        :return:
+        """
+        lineList = open(hook_tmp_file, 'r').readlines()
+        # os.unlink (self.tmpfile)
+        infoDict = GEN.parseInfo(lineList)
+        # print infoDict
+        hook_dict = {}
+        if len(infoDict['lnPARAM']) > 0 and len(infoDict['lnVAL']) > 0:
+            for i, inparm in enumerate(infoDict['lnPARAM']):
+                hook_dict[inparm] = infoDict['lnVAL'][i]
+        return hook_dict
+
+    # 不允许删除层的操作
+    def not_allowed_layer(self, use_delete_layer, use_delete_row_num):
+        # 发送一个错误指令将让后面的命令无法操作
+        # self.GEN.COM("dont delete %s" % (use_delete_layer));
+
+        # copy matrix_row
+        copy_row_num = use_delete_row_num + 1
+        file_path = None;
+        if (os.environ.get("INCAM_PRODUCT") != None):
+            file_path = "%s/delete_layer_chack" % (os.environ.get("JOB_USER_DIR"))
+        else:
+            file_path = "%s/fw/jobs/%s/user/delete_layer_chack" % (os.environ.get("GENESIS_DIR"), self.job_name)
+        try:
+            f_open = open(file_path, mode='w+')
+            f_open.write("rename_row_and_name %s %s" % (use_delete_row_num, use_delete_layer))
+            f_open.close()
+            # QMessageBox.warning(self, u"路径", u"sssssssssss %s" % (file_path));
+        except Exception as reson:
+            print(reson)
+        self.GEN.COM("matrix_copy_row,job=%s,matrix=matrix,row=%s,ins_row=%s" % (self.job_name,
+                                                                                 use_delete_row_num,
+                                                                                 copy_row_num))
+        self.GEN.COM("matrix_refresh, job=%s, matrix=matrix" % (self.job_name))
+        # self.GEN.PAUSE("ssssssssssssssssssss");
+
+    # 固定misc名字检测
+    def misc_dont_delete_name(self):
+        dont_delete_name_doct = {}
+        dont_delete_name_doct["map"] = "map"
+        dont_delete_name_doct["dd"] = "dd"
+        dont_delete_name_doct["drawing"] = "drawing"
+        dont_delete_name_doct["vcut"] = "vcut"
+        dont_delete_name_doct["via"] = "via"
+        dont_delete_name_doct["pth"] = "pth"
+        dont_delete_name_doct["npth"] = "npth"
+        dont_delete_name_doct["www"] = "www"
+        dont_delete_name_doct["ww"] = "ww"
+        dont_delete_name_doct["ww1"] = "ww1"
+        dont_delete_name_doct["ww2"] = "ww2"
+        dont_delete_name_doct["pnl-rout1"] = "pnl-rout1"
+        dont_delete_name_doct["sz...dq"] = "sz...dq"
+        dont_delete_name_doct["sz.lp"] = "sz.lp"
+        dont_delete_name_doct["lpc"] = "lpc"
+        dont_delete_name_doct["lps"] = "lps"
+        dont_delete_name_doct["inner_panel_surface"] = "inner_panel_surface" # 20241204 
+        return dont_delete_name_doct
+
+    # 正则检测不能删的名字
+    def dont_delete_name_by_re(self, layer_name):
+        # pnl-rout*
+        if (re.search("^pnl-rout\d+$", layer_name)):
+            return True
+        elif (re.search("^sz(\d+)-(\d+)\.\.\.dq$", layer_name)):
+            return True
+        elif (re.search("^sz(\d+)-(\d+)\.lp$", layer_name)):
+            return True
+        elif (re.search("^lm(\d+)(\d+)$", layer_name)):
+            return True
+
+    def check_allow_delete_layer(self, layer_name):
+        pass
+
+
+if __name__ == "__main__":
+    BDL = befor_delete_layer_handle()
+    BDL.main()

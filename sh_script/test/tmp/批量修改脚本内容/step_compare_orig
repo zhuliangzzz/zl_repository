@@ -1,0 +1,183 @@
+#!/bin/csh -f
+#**********************************************
+# Scripts Name: Compare The Step:
+# Created by  :chris
+# Change by fszhu
+# 2013.02.06 fszhu  (Possible Short\:$Pos_SHORT Possible Broken\:$Pos_BROKE)
+#**********************************************
+COM disp_off
+source /incam/server/site_data/scripts/sh_script/step_compare/common.def
+source /incam/server/site_data/scripts/sh_script/step_compare/setcolor
+
+set NeoSrcPath = "$INCAM_SITE_DATA_DIR/scripts/User/Neo"
+set NeoBoxsPath = "$NeoSrcPath/Tools/MessBoxs.Neo"
+alias NeoBoxs '$NeoBoxsPath \!:*'
+	
+###get the step
+#set echo
+set stepname=$1
+DO_INFO -t JOB -e $JOB -d STEPS_LIST
+set i = 1
+set STEP_Menu_Edit = ( )
+set STEP_Menu_Orig = ( )
+DO_INFO -t STEP -e $JOB/$1 -d EXISTS    
+if ( $gEXISTS == 'yes' ) then
+ set STEP_Menu_Edit = ( $STEP_Menu_Edit $1 )
+endif
+
+while ( $i <= $#gSTEPS_LIST )
+    if ($gSTEPS_LIST[$i] == 'orig' || $gSTEPS_LIST[$i] == 'yg' || $gSTEPS_LIST[$i] == 'org') then
+        set STEP_Menu_Orig = ( $gSTEPS_LIST[$i] $STEP_Menu_Orig )    
+    else 
+        set STEP_Menu_Orig = ( $STEP_Menu_Orig $gSTEPS_LIST[$i] )    
+    endif
+    if ($gSTEPS_LIST[$i] != $1 ) then
+        set STEP_Menu_Edit = ( $STEP_Menu_Edit $gSTEPS_LIST[$i] )      
+    endif           
+    @ i++
+end
+
+gui_out WIN 180 80
+gui_out FONT tbr24
+gui_out BG $GREEN
+gui_out FG $BLACK
+gui_out LABEL "Net Analyzer Scripts"
+gui_out LABEL
+gui_out FONT tbr18
+gui_out FG $BLUE
+gui_out BG $PINK
+gui_out LABEL "------------------------"
+gui_out FONT tbr17
+
+gui_out FORM
+gui_out FG $BLUE
+gui_out BG $GREEN
+gui_out LABEL "Orig Step:"
+gui_out OPTION Orig_Step
+  foreach s ( $STEP_Menu_Orig )
+gui_out  $s
+  end
+gui_out   END 
+gui_out LABEL "net Step:"
+gui_out OPTION Edit_Step
+  foreach s ( $STEP_Menu_Edit )
+gui_out  $s
+  end
+gui_out   END 
+gui_out ENDFORM
+
+# gui_out BG $YELLOW
+# gui_out FORM
+# gui_out RADIO addpoint \' '@/incam/server/site_data/scripts/suntak/picture/enable_add_netpoint.xbm' \' H 1 $RED
+# gui_out Yes
+# gui_out No
+# gui_out END
+# gui_out ENDFORM
+# gui_out "FORM addpoint 1"
+# gui_out LABEL "@/incam/server/site_data/scripts/suntak/picture/netpoint_note.xbm"
+# gui_out LABEL ""
+# gui_out ENDFORM
+
+gui_out FONT tbr18
+gui_out LABEL
+gui_out BG $PINK
+gui_out FG $BLUE
+gui_out LABEL "------------------------"
+gui_out BG $GREEN
+gui_out LABEL
+gui_out FONT tbr14
+gui_out BW 1
+gui_out BG $GOLD
+gui_out FG $BLACK
+gui_out RADIO dOption \' "*Running Option  :" \' H 1 $BLUE
+gui_out   Next
+gui_out   Exit
+gui_out END
+gui_out BW 0
+gui_out FONT tbr18
+gui_out BG $GREEN
+gui_out FG $BLACK
+gui_out CLABEL Next
+dogui 
+#########################
+if ( $dOption == 2 ) then
+   exit
+endif
+
+set orig_step = $STEP_Menu_Orig[$Orig_Step]
+set edit_step = $STEP_Menu_Edit[$Edit_Step]
+
+set cJobPath = `/incampro/release/bin/dbutil path jobs $JOB`
+
+rm -rf $cJobPath/user/netlist
+
+#if ( $addpoint == 1 ) then
+#    source /incam/server/site_data/scripts/suntak/add_net_point
+#endif
+
+#the step compare begin:
+COM set_step,name=$orig_step
+AUX set_group,group=$COMANS
+
+COM netlist_ref_update,job=$JOB,step=$orig_step,source=cur,recalc_cur=yes
+COM netlist_delete,job=$JOB,step=$orig_step,type=cur,layers_list=
+
+COM set_step,name=$edit_step
+AUX set_group,group=$COMANS
+
+#set echo
+COM rv_tab_empty,report=netlist_compare,is_empty=yes
+COM netlist_compare,job2=$JOB,step2=$orig_step,type2=ref,recalc_cur=yes,use_cad_names=no,report_extra=yes,report_miss_on_cu=yes,report_miss=yes,max_highlight_shapes=100000
+#COM zoom_mode,zoom=zoom
+set results = ($COMANS)
+
+COM rv_tab_view_results_enabled,report=netlist_compare,is_enabled=yes,serial_num=-1,all_count=-1
+COM rv_tab_empty,report=netlist_compare,is_empty=no
+COM netlist_compare_results_show,action=netlist_compare,is_end_results=yes,is_reference_type=yes,job2=$JOB,step2=$orig_step,mode=1,layers_list1=,layers_list2=
+##########################aaa
+#1 Shorts 1 Brokens 0 Possible Short 0 Possible Broken 0 Missings 20 Extras
+    set SHORT = `echo "$results" | awk -F' ' '{print $1}'`
+	 set BROKE = `echo "$results" | awk -F' ' '{print $3}'`
+    set Pos_SHORT = `echo "$results" | awk -F' ' '{print $5}'`
+    set Pos_BROKE = `echo "$results" | awk -F' ' '{print $8}'`
+	 #set MISS = `echo "$results" | awk -F' ' '{print $11}'`
+	 #set EXTRA = `echo "$results" | awk -F' ' '{print $13}'`
+    ##get the job path    
+    echo "st_net" > $cJobPath/user/st_net
+	
+    if ( $SHORT != 0 || $BROKE != 0 ) then
+       rm -rf $cJobPath/user/st_net
+        set gResults = 'Failure'
+    else
+        set gResults = 'Success'
+    endif
+	
+    if ( -e $cJobPath/user/netlist_result ) then
+        rm -rf $cJobPath/user/netlist_result
+    endif
+
+    NeoBoxs "网络异常::JOB:$JOB 请检查 短路\:$SHORT, 开路\:$BROKE, Possible Short\:$Pos_SHORT  Possible Broken\:$Pos_BROKE ::ok::w"
+    COM netlist_page_close
+	 rm -rf /tmp/netlist
+	 COM netlist_save_compare_results,output=file,out_file=/tmp/netlist
+      
+       ##get the time
+	 set cDATE = `date '+%Y.%m.%d %H:%M'`
+    set logDATE = `date '+%Y%m'`
+	 ## get the user name
+    COM get_user_name
+    set user = `echo "$COMANS"`
+    echo "===========================================================" >> $cJobPath/user/netlist
+	 echo "The $user Compare Step:($orig_step -> $edit_step) at $cDATE" >> $cJobPath/user/netlist
+    echo "Compare:$gResults, SHORT:$SHORT BROKE:$BROKE Pos_SHORT:$Pos_SHORT Pos_BROKE:$Pos_BROKE, Job:$JOB Step:($orig_step -> $edit_step) User:$user Date:$cDATE;" >> /id/workfile/logs/step_net_compare_${logDATE}.log
+    cat /tmp/netlist >> $cJobPath/user/netlist
+    rm -rf /tmp/netlist
+	
+	#COM show_tab,tab=NetlistCompareResults,show=no
+	
+	if ($gResults == 'Failure') then
+		exit 1
+	else
+		exit 0
+	endif
+	

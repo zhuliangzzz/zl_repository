@@ -1,0 +1,72 @@
+#!/bin/csh
+##########################################################################
+#
+# Drill start/end verification coupon hook : drill_verif
+#
+# This hook is used for updating preview verification coupons
+#
+# There are 3 environment variables that are passed to the script :
+#
+#   1. 'JOB'  - job  name
+#   2. 'STEP' - step name
+#   3. 'LAYER'- layer name
+#
+#
+# To configurate this hook next parameters shoud be defined
+#
+# set OUTPUT  = std or adm	- output type: standard or ADM 
+# set FORMAT  = xxxxx		- output format for STANDARD output only
+# set NC_SET  = xxxxx		- NC-set name for ADM only 		
+#				  if not defined TMP_NC_SET wiil be used
+# set MACHINE = xxxxx		- Machine file name for ADM only
+#
+##########################################################################
+
+set OUTPUT  = adm
+set FORMAT  = 
+
+set NC_SET  = 
+set MACHINE = excellon
+
+set TMP_NC_SET  = __++_tmp_++__
+##########################################################################
+
+if ($OUTPUT == "std") then
+
+
+if ($?GENESIS_TMP) then
+   set TMP = $GENESIS_TMP
+else if ($?GENESIS_DIR) then
+   set TMP = $GENESIS_DIR/tmp
+else
+   set TMP = /genesis/tmp
+endif
+
+#Standard output
+COM output_layer_reset
+COM output_layer_set,layer=$LAYER
+COM output,job=$JOB,step=$STEP,format=$FORMAT,dir_path=$TMP,break_symbols=yes,nf1=5
+
+set PATH = $TMP/$LAYER
+\rm $PATH
+
+else if ($OUTPUT == "adm") then
+
+# Auto Drill Manager
+if ($?NC_SET) then
+    set NC_SET = $TMP_NC_SET
+endif
+
+COM ncset_cur	   ,job=$JOB,step=$STEP,layer=$LAYER,ncset=$NC_SET
+COM ncd_set_machine,machine=$MACHINE
+COM ncd_auto_all   ,create_drill=yes
+
+if( $NC_SET == $TMP_NC_SET ) then
+    COM ncset_delete,name=$TMP_NC_SET
+endif
+
+else
+PAUSE Output type parameter in hook 'drill_verif' was not initialized.
+endif
+
+exit 0

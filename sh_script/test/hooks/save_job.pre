@@ -1,0 +1,295 @@
+#!/usr/bin/perl
+use lib "$ENV{INCAM_PRODUCT}" . '/app_data/perl';
+use incam;
+use File::Basename;
+
+
+$host = shift;
+my $f = new incam($host);
+
+$JOB = $ENV{JOB};
+$STEP = $ENV{STEP};
+
+if ("$JOB" eq "genesislib"){
+	exit (1);
+}
+
+#my $filepath;
+my $savefile1;
+#my $userpathAttr;
+my $job_dir;
+my $file_user;
+my $signal_change_log;
+#if ($ENV{INCAM_PRODUCT} eq '/frontline/incampro/release'){
+#	$filepath = "/incampro/incamp_db1";
+#	$userpathAttr  = "/incampro/server";
+#	$savefile1 = "$ENV{JOB_USER_DIR}/save_log";
+#	($file_user,$job_dir) = fileparse($ENV{JOB_USER_DIR});
+#}else{
+#	$filepath = "/incam/incam_db1";
+#	$userpathAttr  = "/incam/server";
+#	$savefile1 = "$ENV{JOB_USER_DIR}/save_log";
+#	($file_user,$job_dir) = fileparse($ENV{JOB_USER_DIR});
+#}
+
+if ($ENV{INCAM_PRODUCT}) {
+	$savefile1 = "$ENV{JOB_USER_DIR}/save_log";
+	$signal_change_log = "$ENV{JOB_USER_DIR}/signal_change_log";
+	($file_user,$job_dir) = fileparse($ENV{JOB_USER_DIR});
+}
+
+$f->COM("get_user_name");
+$user = $f->{COMANS};
+$f->COM("get_user_group");
+my $gGroup = $f->{COMANS};
+
+if ( ($JOB !~ /.*-testjob[0-9]?$/ && $gGroup eq "new") or $user eq "checkout" ){
+    $f->COM("skip_current_command");
+    $f->PAUSE("You can only save testjob jobs");
+    exit 0
+}
+
+
+# === song 检查料号锁 ===
+my $get_status = system("python /frontline/incam/server/site_data/scripts/hdi_scr/Tools/job_lock/pre_save_check.py");
+if ($get_status != 0) {
+	exit 0;
+}
+# --HDI B69、940系列客户指定job最后一位固定为“1”  AresHe 2022.2.28
+# --来源需求:http://192.168.2.120:82/zentao/story-view-4033.html
+my $clientName = substr($JOB,1,3);
+my $clientNameSpe = substr($JOB,0,4);
+
+#my $jobn = $JOB;
+##if($clientName =~ /b69|940/){
+#    $jobn = substr($JOB,0,12);
+#    # --固定最后一位“1”
+#    $jobn = $jobn.'1';
+##}
+## --设定jobn料号名变量
+#
+#print("\$jobn $jobn\n");
+#$f->COM("set_attribute,type=job,job=$JOB,name1=,name2=,name3=,attribute=jobn,value=$jobn,units=inch");
+system("python /incam/server/site_data/scripts/hdi_scr/Tools/get_job_attr/get_job_attr.py $JOB");
+
+#检查net被解锁后线路层是否有改动 20230318 by lyh
+system("python /incam/server/site_data/scripts/sh_script/check_layer_modify_info/check_layer_modify_info.py $JOB");
+
+
+my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time());
+$year += 1900;
+$mon = sprintf("%02d", $mon + 1);
+$mday = sprintf("%02d", $mday);
+$hour = sprintf("%02d", $hour);
+$min = sprintf("%02d", $min);
+$sec = sprintf("%02d", $sec);
+$todax = "${year}/${mon}/${mday} ${hour}:${min}:${sec}";
+
+system("cp -r /incam/server/site_data/userattr $job_dir/misc/");
+
+$hdi_number = substr($JOB, 7, 1);
+# === TODO增加层别属性设定 ===
+system("python /incam/server/site_data/scripts/hdi_scr/Tools/get_job_attr/get_layer_attr.py $JOB");
+
+$f->INFO(entity_type => 'job',
+         entity_path => "$JOB",
+		   data_type => 'STEPS_LIST');
+my @step_list = @{$f->{doinfo}{gSTEPS_LIST}};
+
+$f->COM("info, out_file=/tmp/change_data_file,args= -t job -e $JOB -m script -d CHANGES");
+my @change_data = readpipe("cat /tmp/change_data_file");
+system("rm -rf /tmp/change_data_file");
+open(DEST,">>$savefile1");
+open(SIG_CHANGE,">>$signal_change_log");
+my $change_no = scalar(@change_data);
+my @Modified_data = ();
+my @Created_data = ();
+my @Deleted_data = ();
+if ( $change_no ne "0" ) {
+	my $status = "";
+	foreach my $tmp (@change_data) {
+		if ( $tmp ne "" ) {
+			chomp($tmp);
+			$tmp =~ s/ //g;
+			if ( $tmp =~ /Modified/ ) {
+				$status = "yes";
+			}
+		
+			if ( $status eq "yes" ) {
+				if ( $tmp =~ /Created/ or $tmp =~ /Deleted/ ) { 
+					last;
+				}
+				if ( $tmp =~ /step/ && $tmp =~ /layer/ ) {
+					push(@Modified_data,$tmp);
+				}
+			}
+		}	
+	}
+	
+	$status = "";
+	foreach my $tmp (@change_data) {
+		if ( $tmp ne "" ) {
+			chomp($tmp);
+			$tmp =~ s/ //g;
+			
+			if ( $tmp =~ /Created/ ) {
+				$status = "yes";
+			} 
+		
+			if ( $status eq "yes" ) {
+				if ( $tmp =~ /Modified/ or $tmp =~ /Deleted/ ) {
+					last;
+				}
+				if ( $tmp =~ /step/ && $tmp =~ /layer/ ) {
+					push(@Created_data,$tmp);
+				}
+			}
+		}	
+	}
+	
+	$status = "";
+	foreach my $tmp (@change_data) {
+		if ( $tmp ne "" ) {
+			chomp($tmp);
+			$tmp =~ s/ //g;
+			if ( $tmp =~ /Deleted/ ) {
+				$status = "yes";
+			} 
+	
+			if ( $status eq "yes" ) {
+				if ( $tmp =~ /Created/ or $tmp =~ /Modified/ ) {
+					last;
+				}
+				if ( $tmp =~ /step/ ) {
+					push(@Deleted_data,$tmp);
+				}
+			}
+		}	
+	}
+	
+	my $mod_no = scalar(@Modified_data);
+	my $cre_no = scalar(@Created_data);
+	my $del_no = scalar(@Deleted_data);
+	if ( $mod_no > 0 or $cre_no > 0 or $del_no > 0 ) {
+		print DEST "######## Modifier $JOB $user $todax ########\n";
+	}
+	
+	if ( $mod_no > 0 ) {
+		my $step1 = "";
+		my $i = 0;
+		foreach my $step (@step_list) {
+			my @layer_list = ();
+			foreach my $tmp (@Modified_data) {
+				if ( $tmp !~ /Entities/ ) {
+					if ( $tmp =~ /step/ ) {						
+						my @tmp_data = split(/\,/,$tmp);
+						my $tmp_step = @tmp_data[0];
+						my $tmp_layer = @tmp_data[1];
+						if ( $tmp_step =~ /$step/ ) {
+							$i++;
+							if ( $i eq 1 ) {
+								$step1 = $step;
+							}
+							my @tmp_layer_data = split(/\=/,$tmp_layer);
+							my $layer = @tmp_layer_data[1];
+							chomp($layer);
+							push(@layer_list,"$layer\,");
+						}
+					}						
+				}	
+			}
+			my $layer_no = scalar(@layer_list);
+			if ( $layer_no > 0 ) {
+				my %count;
+				my @all_layer = grep {++$count{$_}<2}@layer_list;
+				if ( $step eq "$step1" ) {
+					print DEST "Modified \=\=\>\> STEP --> $step LAYER --> @all_layer\n";
+					print SIG_CHANGE "STEP --> $step ; LAYER --> @all_layer\n";
+				} else {
+					print DEST "              STEP --> $step LAYER --> @all_layer\n";
+					print SIG_CHANGE "STEP --> $step ; LAYER --> @all_layer\n";
+				}
+			}
+		}	
+	}
+	
+	if ( $cre_no > 0 ) {
+		my $step1 = "";
+		my $i = 0;
+		foreach my $step (@step_list) {
+			my @layer_list = ();
+			foreach my $tmp (@Created_data) {
+				if ( $tmp !~ /Entities/ ) {
+					if ( $tmp =~ /step/ ) {						
+						my @tmp_data = split(/\,/,$tmp);
+						my $tmp_step = @tmp_data[0];
+						my $tmp_layer = @tmp_data[1];
+						if ( $tmp_step =~ /$step/ ) {
+							$i++;
+							if ( $i eq 1 ) {
+								$step1 = $step;
+							}
+							my @tmp_layer_data = split(/\=/,$tmp_layer);
+							my $layer = @tmp_layer_data[1];
+							chomp($layer);
+							push(@layer_list,"$layer\,");
+						}
+					}						
+				}	
+			}
+			my $layer_no = scalar(@layer_list);
+			if ( $layer_no > 0 ) {
+				my %count;
+				my @all_layer = grep {++$count{$_}<2}@layer_list;
+				if ( $step eq "$step1" ) {
+					print DEST "Created  \=\=\>\> STEP --> $step LAYER --> @all_layer\n";
+				} else {
+					print DEST "              STEP --> $step LAYER --> @all_layer\n";
+				}
+			}
+		}	
+	}
+
+	if ( $del_no > 0 ) {
+		my $step1 = "";
+		my $i = 0;
+		foreach my $step (@step_list) {
+			my @layer_list = ();
+			foreach my $tmp (@Deleted_data) {
+				if ( $tmp !~ /Entities/ ) {
+					if ( $tmp =~ /step/ ) {						
+						my @tmp_data = split(/\,/,$tmp);
+						my $tmp_step = @tmp_data[0];
+						my $tmp_layer = @tmp_data[1];
+						if ( $tmp_step =~ /$step/ ) {
+							$i++;
+							if ( $i eq 1 ) {
+								$step1 = $step;
+							}							
+							my @tmp_layer_data = split(/\=/,$tmp_layer);
+							my $layer = @tmp_layer_data[1];
+							chomp($layer);
+							push(@layer_list,"$layer\,");							
+						}
+					}						
+				}	
+			}
+			my $layer_no = scalar(@layer_list);
+			if ( $layer_no > 0 ) {
+				my %count;
+				my @all_layer = grep {++$count{$_}<2}@layer_list;
+				if ( $step eq "$step1" ) {
+					print DEST "Deleted  \=\=\>\> STEP --> $step LAYER --> @all_layer\n";
+				} else {
+					print DEST "              STEP --> $step LAYER --> @all_layer\n";
+				}
+			}
+		}	
+	}
+}
+
+close DEST;
+close SIG_CHANGE;
+
+
+############################ END OF PROGRAM #####################

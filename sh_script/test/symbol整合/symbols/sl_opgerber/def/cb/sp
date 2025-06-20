@@ -1,0 +1,17 @@
+#!/usr/bin/perl
+use Tk;
+use Encode;
+use Genesis;
+use vars qw/$TOP/;
+require Tk::Dialog;
+$host = shift;
+$f = new Genesis($host);
+$JOB = $ENV{JOB};
+$mw = MainWindow->new;
+my $directname = $mw->chooseDirectory;
+if (defined $directname and $directname ne '') {
+print "$directname \n";
+$f->COM(edit_form,job => $JOB,form =>sl_opgerber,elem =>path,value =>$directname);
+}
+#MainLoop;
+

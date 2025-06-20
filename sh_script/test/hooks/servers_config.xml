@@ -1,0 +1,4 @@
+<networkConfig>
+	<incam nfspath="/incam/server" winpath=""/>
+	<incamp nfspath="/incamp/server" winpath=""/>
+</networkConfig>

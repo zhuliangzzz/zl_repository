@@ -1,0 +1,15 @@
+#
+#Feature symbol names
+#
+$0 s118.11
+
+#
+#Feature attribute names
+#
+@0 .nomenclature
+
+#
+#Layer features
+#
+L 0.0587393 0.0756278 2.6032145 0.0756278 0 N 0 
+T 0.0001766 0.0169473 standard P 0 0.0866142 0.1181102 1.31234 '$$job $$layer $$date BY' 0;0

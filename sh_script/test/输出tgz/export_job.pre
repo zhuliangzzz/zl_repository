@@ -1,0 +1,337 @@
+#!/usr/bin/perl
+## rewrite by hyp
+## modified by song 20190610 : save_time use the first time after netcompare 
+## modified by song 20190611 : 
+## 1.when user is cz zy (CAM CHECK Member) and export job is *-inn check the normal job 
+## 2. Dialog add job name for seeing more clear
+
+use strict;
+use Tk;
+use utf8;
+use lib "/incam/$ENV{INCAM_RELEASE_VER_VGT}/app_data/perl";
+use incam;
+
+my $curJob;
+my $tmp_file = "";
+
+if (! -f $ARGV[0] ) {
+    # 正式调用hooks时，$ARGV[0]一定是一个文件，在脚本中调用hooks时，可能会传入某个参数，
+    # 当然这个参数也有可能是文件，如果是文件的话，按else语块中进行文件解析就可以了。
+    # 2019.12.5李家兴修改此项，为了在output_tgz.pl脚本中调用hooks功能
+    # configuration选项gen_line_skip_pre_hooks已经设定为"2",script运行时不调用hooks
+    $curJob = $ARGV[0];
+    print "\$curJob : $curJob\n";
+} else {
+    $tmp_file = $ARGV[0];
+    while (<>) {
+        #set lnPARAM = ('job'                   'path'                  'mode'                  'submode'               'units'                 'use_placed_comp_only'  'del_elements'          'steps_mode'            'steps'                 'lyrs_mode'             'lyrs'                  'format'                'overwrite'             'output_name'           )
+        #set lnVAL   = ('s27406py373a1+tgz_hyp' '/home/Incam/Desktop/'  'tar_gzip'              'full'                  'metric'                'no'                    ''                      'include'               ''                      'include'               ''                      'incam'                 'yes'                   's27406py373a1+tgz_hyp' )
+        chomp($_);
+        my ($string) = $_ =~ /.*\((.*)\).*/;
+        my @array = split(" ", $string);
+        $curJob = $array[0];
+        $curJob =~ s/'//g;
+    }
+}
+
+
+my $host = shift;
+my $f = new incam($host);
+$f->COM("get_user_name");
+my $username = $f->{COMANS};
+#if ( $username eq 'yl' ) { # test by song 20190723 
+#exit 0;
+#}
+
+if ( $tmp_file ne "" ) {
+	system("python /incam/server/site_data/scripts/sh_script/show_user_authority_warning/show_user_authority_warning.py manual_export_tgz $curJob");
+	if (-e "/tmp/exit_scripts_${curJob}.log"){
+		system("rm -rf /tmp/exit_scripts_${curJob}.log");
+		$f->COM("skip_current_command");
+		exit 0;
+	}
+}
+#if ($username eq 'cz' or $username eq 'zy' or $username eq 'song' or $username eq 'rphe') {
+if ($username eq '43975' or $username eq '44566' or $username eq 'song' or $username eq 'rphe' or $username eq '89627') {
+	if ($curJob =~ /(.*)-inn/) {
+		$curJob = $1;
+	}
+}
+$f->COM("get_job_path,job=$curJob");
+my $curJobPath = $f->{COMANS};
+
+
+
+&Main();
+&Get_Chris_tudian();
+
+sub Main
+{
+    # check if saved
+    $f->INFO(entity_type => 'job',
+             entity_path => $curJob,
+             data_type => 'IS_CHANGED');
+    if ( $f->{doinfo}{gIS_CHANGED} eq "yes" ) 
+    { 
+        &DialogWindow("检测到 $curJob 修改资料后未保存!");
+        if (-f $tmp_file) {
+            $f->COM("skip_current_command");
+        } else {
+            exit(-1);
+        }
+        return 0;
+    }
+    
+    # check if run netlist compared while modified edit
+    my $jobModifySaveTime     = &GetSaveModifyTime();
+    my $jobNetlistCompareTime = &GetNetlistCompareTime();
+    my $jobAfternetsaveTime   = &GetAfterNetSaveTime($jobNetlistCompareTime); 
+
+    if ( ! $jobModifySaveTime or ! $jobNetlistCompareTime ) 
+    {
+        
+    } elsif ( $jobModifySaveTime > $jobNetlistCompareTime && $curJob !~ /.*-test$|da8622*6766a2/)
+    {
+        &DialogWindow("1.检测到 $curJob 修改资料后未进行网络比对，请用快捷键F2进行网络比对!");
+        if (-f $tmp_file) {
+            $f->COM("skip_current_command");
+        } else {
+            exit(-1);
+        }
+        return 0;
+    }
+
+    if ( ! $jobAfternetsaveTime or ! $jobNetlistCompareTime ) 
+    {
+        
+    } elsif  ($jobAfternetsaveTime > $jobNetlistCompareTime && $curJob !~ /.*-test$/) {
+        &DialogWindow("2.检测到 $curJob 修改资料后未进行网络比对，请用快捷键F2进行网络比对!");
+        if (-f $tmp_file) {
+            $f->COM("skip_current_command");
+        } else {
+            exit(-1);
+        }
+        return 0;
+    }
+    
+    # check if netlist exception
+    my @netResultCount = &GetNetlistCompareResult();
+    if ( @netResultCount == 2 && $netResultCount[0] != 0 && $netResultCount[1] != 0 && $curJob !~ /.*-test$/)
+    {
+        &DialogWindow("$curJob 网络有短路: $netResultCount[0] 处, 断路: $netResultCount[1] 处, 请处理!");
+        if (-f $tmp_file) {
+            $f->COM("skip_current_command");
+        } else {
+            exit(-1);
+        }
+        return 0;
+    }
+    if ( @netResultCount == 2 && $netResultCount[0] != 0 && $curJob !~ /.*-test$/)
+    {
+        &DialogWindow("$curJob 网络有短路: $netResultCount[0] 处, 请处理!");
+        if (-f $tmp_file) {
+            $f->COM("skip_current_command");
+        } else {
+            exit(-1);
+        }
+        return 0;
+    }
+    if ( @netResultCount == 2 && $netResultCount[1] != 0 && $curJob !~ /.*-test$/)
+    {
+        &DialogWindow("$curJob 网络有断路: $netResultCount[1] 处, 请处理!");
+        if (-f $tmp_file) {
+            $f->COM("skip_current_command");
+        } else {
+            exit(-1);
+        }
+        return 0;
+    }
+    return 1;
+}
+
+sub GetSaveModifyTime 
+{
+    my $lastSaveDate;
+    my $lastSaveTime;
+    my $lineAllNum   = `wc -l $curJobPath/user/save_log`;
+    my $modifierLine = `cat $curJobPath/user/save_log | grep -n Modifier | tail -1 | cut -d ':' -f1`;
+    
+    open (FILE, "$curJobPath/user/save_log") or warn "can not open file";
+    my $line                = 1;
+    my $isMatchModifiedLine = $lineAllNum;
+    my $isMatchMarkLine     = $lineAllNum;
+    my $isMatchModify       = 0;
+    while (<FILE>)
+    {
+        if ( $line < $modifierLine )
+        {
+            $line++;
+            next;
+        }
+        $isMatchModifiedLine = $line if ($_ =~ /Modified/);
+        $isMatchMarkLine     = $line if ( $line > $isMatchModifiedLine and $_ =~ /==>>/);
+        $line++;
+    }
+    close FILE;
+    
+    open (FILE, "$curJobPath/user/save_log") or warn "can not open file";
+    my $line2 = 1;
+    while (<FILE>)
+    {
+        if ( $line2 < $modifierLine )
+        {
+            $line2++;
+            next;
+        }
+        ($lastSaveDate,$lastSaveTime) = $_ =~ /\A#+\ +Modifier\ +[^\ ]*\ +[^\ ]*\ +([^\ ]*)\ +([^\ ]*)\ +#+\Z/ if ( $_ =~ /Modifier/ );
+        $lastSaveDate =~ s/[^0-9]//g;
+        $lastSaveTime =~ s/[^0-9]//g;    
+        if ( $line2 >= $isMatchModifiedLine and $line2 < $isMatchMarkLine )
+        {
+            chomp;
+            $isMatchModify = 1 if ( $_ =~ /edit.*LAYER/ and ( $_ =~ /drl|2nd|3nd|^l[0-9]{1,2}|^b[0-9]{2,4}|^s[0-9]{2,4}|^bd[0-9]{2,4}/ ) );
+        }
+        $line2++;
+    }
+    
+    close FILE;
+    
+    my $saveTime = "$lastSaveDate"."$lastSaveTime";
+    print "last save time : $saveTime\n";
+    
+    return $saveTime if ( $isMatchModify );
+    return 0;
+}
+
+sub GetAfterNetSaveTime 
+{
+    my ($jobNetlistCompareTime) = @_;
+
+    my $lastSaveDate;
+    my $lastSaveTime;
+    my $saveTime;
+    my $lineAllNum   = `wc -l $curJobPath/user/save_log`;
+    #my $modifierLine = `cat $curJobPath/user/save_log | grep -n Modifier | tail -1 | cut -d ':' -f1`;
+    my $modifierLine;
+    open (FILE, "$curJobPath/user/save_log") or warn "can not open file";
+    my $line                = 1;
+    my $isMatchModifiedLine = $lineAllNum;
+    my $isMatchMarkLine     = $lineAllNum;
+    my $isMatchModify       = 0;
+    while (<FILE>)
+    {
+        ($lastSaveDate,$lastSaveTime) = $_ =~ /\A#+\ +Modifier\ +[^\ ]*\ +[^\ ]*\ +([^\ ]*)\ +([^\ ]*)\ +#+\Z/ if ( $_ =~ /Modifier/ );
+        $lastSaveDate =~ s/[^0-9]//g;
+        $lastSaveTime =~ s/[^0-9]//g;    
+        $saveTime = "$lastSaveDate"."$lastSaveTime";
+        if ($saveTime < $jobNetlistCompareTime) {
+            $line++;
+            next;
+        }
+        # $isMatchModifiedLine = $line if ($_ =~ /Modified/);
+        # $isMatchMarkLine     = $line if ( $line > $isMatchModifiedLine and $_ =~ /==>>/);
+        chomp;
+
+        if ( $_ =~ /edit.*LAYER/ and ( $_ =~ /drl|2nd|3nd|l[0-9]{1,2}|b[0-9]{2,4}|s[0-9]{2,4}|bd[0-9]{2,4}/ )) {
+            $isMatchModify = 1;
+            last;
+        }
+        $line++;
+    }
+    close FILE;
+    print "save time after netcompare: $saveTime $isMatchModify\n";
+    return $saveTime if ( $isMatchModify );
+    return 0;
+}
+
+sub GetNetlistCompareTime
+{   
+    my $netlistComFile = "$curJobPath/user/netlist_compare";
+    return "19700101010101" if ( ! -f $netlistComFile );
+    my $time;
+    open (FILE, "$netlistComFile") or warn "Can not open file";
+    while (<FILE>)
+    {
+        chomp;
+        $time = $_;
+        last;
+    }
+    close (FILE);
+	print "net compare time $time\n";
+    return $time;
+}
+
+sub DialogWindow
+{
+    my ($content,$bg,$fg) = @_;
+    $bg = '#d9d9d9' unless ($bg);
+    $fg = 'black' unless ($fg);
+    require Tk::Dialog;
+    my $warn_win = MainWindow->new(-title =>"胜宏科技");
+    $warn_win->Dialog(-title=>'Dialog', -text => $content, -default_button => 'Ok', -buttons => ['Ok'], -bitmap => 'error', -font => 'monospace 12', -bg => $bg, -fg => $fg, -command => sub{$warn_win -> destroy;} ) -> Show ();
+    MainLoop;
+    return 1;
+}
+
+
+
+
+sub GetNetlistCompareResult
+{
+    my $netFile = "$curJobPath/user/last_netlist_compare_log";
+    
+    my @result;
+    
+    return @result unless ( -f $netFile );
+
+    my $broken  = `cat $netFile | grep Total | sed -n 1p | cut -d ':' -f2 | sed 's/ //g'`;
+    my $short   = `cat $netFile | grep Total | sed -n 2p | cut -d ':' -f2 | sed 's/ //g'`;
+    chomp $short;
+    chomp $broken;
+    push(@result,$short);
+    push(@result,$broken);
+    return @result;
+    
+    #open(FILE, $netFile);
+    #while (<FILE>)
+    #{
+    #    chomp;
+    #    my $tmp = $_;
+    #    if ( my ($pattern) = $tmp =~ m<Script Create Summary: (.*)> )
+    #    {
+    #        #Script Create Summary: 0 Shorts 3 Brokens 2 Missings 0 Extras 0 Missings SMD/BGA 0 Extras SMD/BGA
+    #        my @result_list  = split(/ /, $pattern);
+    #        push(@result,$result_list[0]);
+    #        push(@result,$result_list[2]);
+    #    }
+    #}
+    #close FILE;
+    #
+    #return @result;
+}
+
+sub Get_Chris_tudian {
+    my $ParmFile = "$curJobPath/user/panel_parameter";
+    if (-e $ParmFile) {
+        my $flow_content = `cat $ParmFile | grep flow_content | cut -d : -f2`;
+        chomp($flow_content);
+        if ($flow_content eq '2') {
+            $f->COM("open_entity,job=$curJob,type=step,name=panel,iconic=no");
+            $f->AUX("set_group,group=$f->{COMANS}");
+            $f->COM("clear_layers");
+            $f->COM("affected_layer,mode=all,affected=no");
+            $f->COM("display_layer,name=l1,display=yes,number=1");
+            $f->COM("work_layer,name=l1");
+            $f->COM("filter_reset,filter_name=popup");
+            $f->COM("filter_set,filter_name=popup,update_popup=no,include_syms=chris-tudian");
+            $f->COM("filter_area_strt");
+            $f->COM("filter_area_end,layer=,filter_name=popup,operation=select,area_type=none,inside_area=no,intersect_area=no");
+            $f->COM("filter_reset,filter_name=popup");
+            $f->COM("get_select_count");
+            if ($f->{COMANS} == '0'){
+                &DialogWindow("走二次铜时需要在L1层添加二铜面积!\n\nsymbol名:chris-tudian!");
+            }
+            $f->COM("editor_page_close");
+        }
+    }
+}

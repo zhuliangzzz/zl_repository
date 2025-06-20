@@ -1,0 +1,427 @@
+#!/usr/bin/perl -w
+#### record open time for incam database management
+## modified by song 2019709 : change curJob get section mode
+# 20241115 zl 外层已审核料号在南通服务器用户禁止打开(在hid incam存在且该料号外层已审核)
+
+#system('cat',$ARGV[0]);
+#set lnPARAM = ('job'               'open_win'          )
+#set lnVAL   = ('h50204gn497a1-neo' 'yes'               )
+
+# incam pro
+#set lnPARAM = ('job'               'open_win'          'disk_map'          'job_map'           )
+#set lnVAL   = ('ha1408gc005a1-drc' 'yes'               ''                  ''                  )
+
+
+our %HooksParam = &iHooksParamConv;
+
+our $curJob;
+while ( <> )
+{
+    #chomp($_);
+    #($curJob) = ($_ =~ m/\A.*lnVAL\s+\=\s+\(\'(.+)\'\s+\'\w+\'\s*\)\Z/);
+    chomp($_);
+    my ($string) = $_ =~ /.*\((.*)\).*/;
+    my @array = split(" ",$string);
+    $curJob = $array[0];
+    $curJob =~ s/'//g; 
+}
+
+use strict;
+
+
+#use lib "$ENV{INCAM_PRODUCT}" . '/app_data/perl';
+use lib "$ENV{SCRIPTS_DIR}/sys/scripts/Package";
+use Genesis;
+use XML::Simple;
+use Data::Dumper;
+use POSIX qw(strftime);
+#use utf8;
+use mainVgt;
+
+use Encode;
+
+my $c = new mainVgt();
+
+
+
+BEGIN{
+	if ( defined $ENV{INCAM_PRODUCT} ) {
+		$ENV{CAMLIB} = "$ENV{INCAM_PRODUCT}/app_data/perl";
+	} else {
+		if ( defined $ENV{GENESIS_DIR} and $ENV{GENESIS_VER} ) {
+			$ENV{CAMLIB} = "$ENV{GENESIS_DIR}/e$ENV{GENESIS_VER}/all/perl";
+		}
+	}
+	if ( defined $ENV{CAMLIB} ) {
+		push (@INC,$ENV{CAMLIB});
+	}
+	if ( defined $ENV{INCAM_SITE_DATA_DIR} ) {
+		$ENV{NeoM} = "$ENV{INCAM_SITE_DATA_DIR}/scripts/User/Neo/Misc/Modules";
+		push (@INC,$ENV{NeoM});
+	}
+
+	use File::Basename;
+	$ENV{CURRSCRIPTPATH} = dirname($0);
+	$ENV{CURRSCRIPTPATH} =~ s#\\#/#g;
+	push (@INC,$ENV{CURRSCRIPTPATH});
+}
+
+my $host = shift;
+#my $f = new incam($host);
+my $f = new Genesis();
+my $soft_use;
+my $another_joblist;
+my $another_soft;
+my $anotherDbutilPath;
+my $error;
+#云服务器跟正常db 不能同时编辑一个文件 这里做个监测 20240315 by lyh
+if ($ENV{INCAM_PRODUCT} =~ /cloud/) {
+	$anotherDbutilPath = "/incampro/release/bin/dbutil";
+	my $tmpCmdLine = "$anotherDbutilPath lock test $curJob" ;
+	print $tmpCmdLine;
+	my $tmpExecLine = `$tmpCmdLine`;
+	chomp $tmpExecLine;
+	my @lock_status = split(/ /,$tmpExecLine);
+
+	
+	my $atime;
+	my $mess;
+	#$atime =  strftime "%Y-%m-%d %H:%M:%S", localtime($check->{'job'}->{$curJob}->{'updated'});
+	if ($lock_status[0] eq "no") {
+		#code
+		$mess = "";
+	} elsif ($lock_status[0] eq "yes")  {
+		$mess = "此料号由$lock_status[1] 锁定,请先关闭型号！\n";
+		$c->Messages('warning',  decode('utf8',"$mess"));
+		&exit_script;
+	} else {
+		$mess = "";
+	}
+}
+
+
+system("python /incam/server/site_data/scripts/ynh/no_gui/get_lock_job_by_user.py $curJob");
+# === song 2021.04.30 由于无两个软件存在，屏蔽以下，避免南通有双环境误报 ===
+=header
+sub judge_two_soft_job
+{
+ # add judge which soft use 
+		use NeoM;
+		use utf8;
+		use Tkx;
+	#print '$ENV{INCAM_PRODUCT}' . "$ENV{INCAM_PRODUCT}" . "\n"; # "/frontline/incampro/release";
+	#print  '$ENV{INCAM_SITE_DATA_DIR}' . "$ENV{INCAM_SITE_DATA_DIR}" . "\n"; # "/incampro/server/site_data";
+
+
+	#print Dumper(\%HooksParam);
+	#有打开窗口的时候才监测
+	if( $HooksParam{'open_win'}  eq 'yes') {
+		if ("$ENV{INCAM_PRODUCT}" =~ /\/incampro\//){
+			$soft_use = "incampro";
+			$another_soft = "incam";
+			$another_joblist = "/incam/server/config/joblist.xml";
+			$anotherDbutilPath = "/incam/release/bin/dbutil";
+		} elsif ("$ENV{INCAM_PRODUCT}" =~ /\/incam\//) {
+			$soft_use = "incam";
+			$another_soft = "incampro";
+			$another_joblist = "/incampro/server/config/joblist.xml";
+			$anotherDbutilPath = "/incampro/release/bin/dbutil";
+
+		} else {
+			$soft_use = "error";
+		}
+	
+		#$f->PAUSE("$soft_use");
+		#print  "$soft_use" . "\n";
+	
+		# 判断料号名是否存在另一个数据库中
+		# incam /frontline/incam/server/config/joblist.xml
+		# incampro /frontline/incampro/server/config/joblist.xml
+		if ( -e $another_joblist ) {
+	
+			my $simple = XML::Simple->new();
+			our $check = $simple->XMLin($another_joblist);
+				#print Dumper($check);
+			if (exists $check->{'job'}->{$curJob}) {
+					my $tmpCmdLine = "$anotherDbutilPath lock test $curJob" ;
+					my $tmpExecLine = `$tmpCmdLine`;
+					chomp $tmpExecLine;
+					my @lock_status = split(/ /,$tmpExecLine);
+
+
+					my $atime;
+					my $mess;
+					$atime =  strftime "%Y-%m-%d %H:%M:%S", localtime($check->{'job'}->{$curJob}->{'updated'});
+					if ($lock_status[0] eq "no") {
+						#code
+						$mess = "此料号未被锁定\n";
+					} elsif ($lock_status[0] eq "yes")  {
+						$mess = "此料号由$lock_status[1] 锁定\n";
+					} else {
+						$mess = "未能获取锁定状态\n";
+					}
+					
+					my $anotherExist = iTkxMsgBox("同名料号存在" ,"$curJob" . "存在于软件" . "$another_soft" . "中,\n$mess 最后用户为 $check->{'job'}->{$curJob}->{'lastUser'},最后更新时间为 $atime \n,打开料号动作终止","ok","warning",'ok',);
+					
+					$error = 'yes';
+	
+
+	
+			} else {
+				#my $anotherExist = iTkxMsgBox("放行","$curJob" . "不存在于软件" . "$another_soft" . "列表中","ok","warning",'ok',);
+				### $AddMirrorJud
+				$error = 'no';
+	
+			}
+		} else {
+			#$f->PAUSE("找不到另一个软件对应的数据库" . "$another_joblist");
+			#print "找不到" . $another_soft ."对应的数据库" . "$another_joblist" . "\n";
+			my $noOtherSoft = iTkxMsgBox("单一程序存在", "找不到" . $another_soft ."对应的数据库" . "$another_joblist" . "打开料号动作终止","ok","warning",'ok',);
+			my $HostName = `hostname`;
+			chomp $HostName;
+			if ($HostName !~ /^Incam/) {
+			$error = 'yes';
+			}
+		}
+		if ($error eq 'yes') {
+			$f->VOF();
+			#$f->COM("checkin_closed_job,job=$curJob");
+			#$f->COM("check_inout,job=$curJob,mode=in,ent_type=job");
+			$f->VON();
+
+			&exit_script;
+			#code
+		}
+	}
+
+
+}
+=cut
+
+
+
+
+#{  #增加自动修复joblist 18.4.8 by Neo
+#    #取消自动修复joblist 2020.01.15 by Song网络连接找不到路径时会清空joblist
+#	my $DbutilPath = "$ENV{INCAM_PRODUCT}/bin/dbutil" ;
+#	my $JobPath = `$DbutilPath path jobs $HooksParam{job}`;
+#		chomp $JobPath;
+#	my $FileExistStat = 'yes';
+#	if ( $JobPath eq "" ) {
+#		$FileExistStat = 'no';
+#	} else {
+#		unless ( -e $JobPath ) {
+#			$FileExistStat = 'no';
+#		}
+#	}
+#	if ( $FileExistStat eq 'no' ) {
+#		use POSIX qw(strftime);
+
+#		#my $DateTime = strftime "%F %H:%M:%S", localtime(time);
+#		my $DateTime = strftime "%Y-%m-%d %H:%M:%S", localtime(time);
+#		$f->COM('get_user_name');
+#		my $IncamUser = $f->{COMANS};
+#		my $HostName = `hostname`;
+#		chomp $HostName;
+#		my $FixLogsPath = "$ENV{INCAM_SITE_DATA_DIR}/scripts/Logs/Fix" ;
+#		my $FixLogsFile = "$FixLogsPath/open_job.log" ;
+#		my $tmpCmdLine = $DbutilPath . ' check y >& /tmp/tFile$$.log;cat /tmp/tFile$$.log | grep -v \'Checking\' | grep -v \'lock\' | grep -v \'Lock\';\rm -rf /tmp/tFile$$.log';
+#		my @DbFixLogs = `$tmpCmdLine`;
+#		&iWriteFile('>>',$FixLogsFile,
+#		"pre	$HooksParam{job}	$DateTime	$IncamUser	$HostName",
+#		@DbFixLogs,
+#		"",
+#		);
+
+#	}
+#}
+
+# === 2022.08.16 183系列不允许改临时资料 http://192.168.2.120:82/zentao/story-view-4528.html
+
+my $cust_name = substr($HooksParam{job},1,3);
+print $cust_name . "\n";
+print 'xxxxxxxxxxxxxxx' . "\n";
+
+if ($cust_name eq '183') {
+    #my $get_status = iTkxMsgBox("183系列更改资料防呆" ,"料号:$HooksParam{job} 值班人员请注意，183系列不允许修改资料","ok","warning",'ok',);
+	$c->Messages('warning',  decode('utf8',"料号:$HooksParam{job} 值班人员请注意，183系列不允许修改资料"));
+}
+
+# if ($cust_name eq 'a86' or $cust_name eq 'd10') {
+		# system("python /incam/server/site_data/scripts/sh_script/show_user_authority_warning/show_user_authority_warning.py nv_customer_view_tgz $HooksParam{job}");
+		# if (-e "/tmp/exit_scripts_$HooksParam{job}.log"){
+			# system("rm -rf /tmp/exit_scripts_$HooksParam{job}.log");
+			# &exit_script;
+		# }
+# }
+
+#六处用户打开资料权限
+system("python /incam/server/site_data/scripts/sh_script/show_user_authority_warning/show_user_authority_warning.py check_hdi_6_open_job_previs $HooksParam{job}");
+if (-e "/tmp/exit_scripts_$HooksParam{job}.log"){
+	system("rm -rf /tmp/exit_scripts_$HooksParam{job}.log");
+	$f->VOF();
+	$f->COM("checkin_closed_job,job=$HooksParam{job}");
+	$f->COM("check_inout,job=$HooksParam{job},mode=in,ent_type=job");
+	$f->VON();
+	&exit_script;
+}
+
+# 20241115 zl 
+system("python /incam/server/site_data/scripts/zl/check/ReviewedJobCheck.py $curJob");
+
+$f->INFO(entity_type => 'job',entity_path => $HooksParam{job},data_type => 'EXISTS',);
+if ( $f->{doinfo}{gEXISTS} eq 'yes' ) {
+
+
+	$f->COM("get_user_name");
+	my $openUser = $f->{COMANS};
+
+	if ( $openUser ne 'hyp' && $openUser ne 'tester' )
+	{
+		
+		my $DbutilPath = "$ENV{INCAM_PRODUCT}/bin/dbutil" ;
+		my $jobPath = `$DbutilPath path jobs $HooksParam{job}`;
+		chomp $jobPath;
+		
+		# my @job_dirname = split("/",$jobPath);
+		# if ($job_dirname[scalar(@job_dirname)-1] ne $HooksParam{job}){
+			# $c->Messages('warning',  decode('utf8',"料号:$HooksParam{job} 的实际资料路径为：$jobPath 跟料号名不一致，请重新导入tgz！"));
+			# &exit_script;
+		# }
+
+		 #chomp($jobPath);
+		 my $jobOpenFile = "${jobPath}/user/last_opentime";
+		#print "jobOpenFile=$jobOpenFile\n";
+		 my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time());
+		 $year += 1900;
+		 $mon = sprintf("%02d", $mon + 1);
+		 $mday = sprintf("%02d", $mday);
+		 $hour = sprintf("%02d", $hour);
+		 $min = sprintf("%02d", $min);
+		 $sec = sprintf("%02d", $sec);
+		 
+		 open(LASTOPENFILE,">${jobOpenFile}") or warn "$!";
+		 print LASTOPENFILE "$year-$mon-$mday $hour:$min:$sec $openUser\n";    
+		 close LASTOPENFILE;
+	}
+
+	require "$ENV{INCAM_SITE_DATA_DIR}/scripts/Manage/UserLoginLog.pl";
+}
+
+
+
+
+
+
+
+
+sub iHooksParamConv { #Hooks传入参数转换  #our %HooksParam = &iHooksParamConv;
+	my $readFile = shift || $ARGV[0] ;
+	#set lnPARAM = ('type'                'source_job'          'source_name'         'dest_job'            'dest_name'           'dest_database'       'remove_from_sr'      )
+	#set lnVAL   = ('job'                 'h50204gn497a1-neo'   'h50204gn497a1-neo'   'h50204gn497a1-neo-t' 'h50204gn497a1-neo-t' 'linux1'              'yes'                 )
+	my (@lnParam,@lnVal);
+	open (PARAM_FILE,  "$readFile") or warn "Cannot open info file -$readFile: $!\n";
+	while ( <PARAM_FILE> ) {
+		chomp($_);
+		if ( $_ =~ /set\s+(\S+)/ ){
+			my ($var,$value) = /set\s+(\S+)\s*=\s*(.*)\s*/;
+			my @words;
+			$value =~ s/^\s*|\s*$//g;
+			if ($value =~ /^\(/ ) {
+				$value =~ s/^\(|\)$//g;
+				@words = &iShellWords($value);
+			} else {
+				$value =~ s/^'|'$//g;
+				@words = ($value);
+			}
+			if ( $var eq 'lnPARAM' ) {
+				@lnParam = @words;
+			} elsif ( $var eq 'lnVAL' ) {
+				@lnVal = @words;
+			}
+		}
+	}
+	close (PARAM_FILE);
+	
+	if ( defined $lnParam[0] and defined $lnVal[0] ){
+		my %tHash;
+		for ( 0 .. $#lnParam ) {
+			$tHash{$lnParam[$_]} = $lnVal[$_];
+		}
+		return (%tHash);
+	
+	}
+	return();
+}
+
+
+sub iShellWords {  #Shell 变量转换 #my @words = iShellWords($line); #my @words = iShellWords(@lines);
+#	local ($_) = join('', @_) if @_;
+#	local (@words,$snippet,$field);
+	my ($_) = join('', @_) if @_;
+	my (@words,$snippet,$field);
+
+	s/^\s+//;
+	while ($_ ne '') {
+		$field = '';
+		for (;;) {
+			if (s/^"(([^"\\]|\\[\\"])*)"//) {
+				($snippet = $1) =~ s#\\(.)#$1#g;
+			} elsif (/^"/) {
+				die "Unmatched double quote: $_\n";
+			} elsif (s/^'(([^'\\]|\\[\\'])*)'//) {
+				($snippet = $1) =~ s#\\(.)#$1#g;
+			} elsif (/^'/) {
+				die "Unmatched single quote: $_\n";
+			} elsif (s/^\\(.)//) {
+				$snippet = $1;
+			} elsif (s/^([^\s\\'"]+)//) {
+				$snippet = $1;
+			} else {
+				s/^\s+//;
+				last;
+			}
+			$field .= $snippet;
+		}
+		push(@words, $field);
+	}
+	return(@words);
+}
+
+
+sub iWriteFile {  #写文件 # iWriteFile('>','D:\1.txt','1','2',); # iWriteFile('>>','D:\1.txt','1','2',);
+	my $WriteMode;
+	if ( $_[0] eq '>' or $_[0] eq '>>' ){
+		$WriteMode = shift;
+	} else {
+		$WriteMode = '>';
+	}
+	my $tFile = shift;
+	if ( $tFile =~ /^>/ ){
+		$WriteMode = '';
+	}
+	$tFile =~ s#[\\]#/#g;
+	my @WriteContent = @_;
+	if ( defined $tFile ) {
+			my %Handle;
+			my $FileHandleRand = 'FileHandle' . int(rand(99999));
+			open ($Handle{$FileHandleRand},  $WriteMode . $tFile) or warn "Cannot open file - $tFile: $!\n";
+			my $FileHandle = $Handle{$FileHandleRand};
+			for my $tLine ( @WriteContent) {
+				chomp $tLine;
+				print $FileHandle $tLine . "\n";
+			}
+			close ($Handle{$FileHandleRand});
+	} else {
+		die "No definition file!\n";
+	}
+	return();
+}
+
+sub exit_script {
+	$f->COM("skip_current_command");
+	exit 0;
+	}
+
+
+

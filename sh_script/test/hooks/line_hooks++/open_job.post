@@ -1,0 +1,356 @@
+#!/bin/perl
+
+# --从$1获取当前料号名
+system('cat',$ARGV[0]);
+my $curJob;
+my $open_win;
+while ( <> )
+{
+    #chomp($_);
+    #($curJob) = ($_ =~ m/\A.*lnVAL\s+\=\s+\(\'(.+)\'\s+\'\w+\'\s*\)\Z/);
+    chomp($_);
+    my ($string) = $_ =~ /.*\((.*)\).*/;
+    my @array = split(" ",$string);
+    $curJob = $array[0];
+    $curJob =~ s/'//g; 
+	$open_win = $array[1];
+	$open_win =~ s/'//g; 
+}
+
+use lib "$ENV{SCRIPTS_DIR}/sys/scripts/Package";
+use mainVgt;
+use Genesis;
+use VGT_Oracle;
+use POSIX qw(strftime);
+use Encode;
+#use encoding 'utf8';
+my $f = new Genesis();
+my $c = new mainVgt();
+my $o = new VGT_Oracle();
+
+print("\$curJob $curJob\n");
+print("\$open_win $open_win\n");
+
+# --注释掉或没调用的都是多层逻辑 AresHe 2021.10.22
+=cut
+my $clientName = substr($curJob,1,3);
+my $clientNameSpe = substr($curJob,0,4);
+# --梁涛要求新增部分系列 AresHe 2021.4.12
+# --梁涛要求新增ca11、s170系列  AresHe 2021.4.26
+# --刘文东要求新增部分系列 AresHe 2021.5.16
+# --刘文东要求新增b78系列 AresHe 2021.7.19
+# --刘文东要求新增676系列 AresHe 2021.7.22
+# --刘文东要求新增565、466系列 AresHe 2021.9.23
+#if($clientName =~ /473|353|940|975|a77|051|a79|968|215|564|b78|676|565|466/ || $clientNameSpe =~ /e519|ca11|s170/){
+    my $jobn = substr($curJob,0,12);
+    # --固定最后一位是
+    $jobn = $jobn.'1';
+    # --设定jobn料号名变量
+    $f->COM("set_attribute,type=job,job=$curJob,name1=,name2=,name3=,attribute=jobn,value=$jobn,units=inch");
+    
+    my $write_notes = "$ENV{GENESIS_DIR}/fw/jobs/$curJob/user/jobn_notes";
+    if ($^O eq 'linux') {
+        $write_notes = "$ENV{JOB_USER_DIR}/jobn_notes";
+    }
+    
+    open(WRITENOTES, ">$write_notes");
+    print WRITENOTES "$jobn";
+    close WRITENOTES;
+#}
+
+# --windows更新二维码
+if ($^O =~ /win/i){
+    &WindowUpdateBarCodeWeek;
+}
+=cut
+# === 有窗口时才打开，避免compare_layers 时，锁定料号 ===
+if ($open_win eq 'yes') {
+	# === 增加打开料号的内层审核状态的锁定 ===
+	system("python /incam/server/site_data/scripts/hdi_scr/Tools/job_lock/open_job_lock_20230829.py $curJob");
+}
+# --HDI B69、940系列客户指定job最后一位固定为“1”  AresHe 2022.2.28
+# --来源需求:http://192.168.2.120:82/zentao/story-view-4033.html
+my $clientName = substr($curJob,1,3);
+my $clientNameSpe = substr($curJob,0,4);
+# my $jobn = $curJob;
+# #if($clientName =~ /b69|940/){
+    # $jobn = substr($curJob,0,12);
+    # # --固定最后一位“1”
+    # $jobn = $jobn.'1';
+# #}
+
+# # --设定jobn料号名变量
+# print("\$jobn $jobn\n");
+# $f->COM("set_attribute,type=job,job=$curJob,name1=,name2=,name3=,attribute=jobn,value=$jobn,units=inch");
+system("python /incam/server/site_data/scripts/hdi_scr/Tools/get_job_attr/get_job_attr.py $curJob");
+
+# --检查料号生产历史LIST AresHe 2021.10.22
+&check_jobs_same_site();
+##针对A79系列 ，打开料号提醒更改二维码，并跳转到二维码界面 by 吕康侠 需求来源：http://192.168.2.120:82/zentao/story-view-3980.html
+
+if ($clientName=~/a79/)
+{
+	if ($^O=~/Win/i){
+		system ("python Z:\\incam\\genesis\\sys\\scripts\\sh_script\\GETZQMC\\CheckEWM.py $curJob");
+	}else{
+		system ("python /incam/server/site_data/scripts/sh_script/GETZQMC/CheckEWM.py $curJob");
+	}
+}
+
+
+# === 2022.10.12 增加需要更新HCT Coupon的提醒
+if ($open_win eq 'yes') {
+	# === 增加打开料号的内层审核状态的锁定 ===
+	system("python /incam/server/site_data/scripts/sh_script/hct_coupon/check_job_hct_step_time.py $curJob");
+}
+
+if ($open_win eq 'yes') {
+	# 增加打开料号的输出资料权限解锁设定 20221226 by lyh
+	system("python /incam/server/site_data/scripts/sh_script/lock_job_forbid_output/unlock_job_for_output.py $curJob");	
+	
+	#显示客户系列和单个料号特殊做法的记录 20230310 by lyh
+	system("python /incam/server/site_data/scripts/sh_script/record_job_customer_spec/show_job_customer_spec.py $curJob");
+	
+	#更新配置文件 20230609 by lyh
+	system("python /incam/server/site_data/scripts/lyh/update_scr_start_file.py");
+}
+####end########
+sub check_jobs_same_site{
+    # --连接MySQL数据库
+    our $dbc_m = $o->CONNECT_MYSQL('host'=>'192.168.2.19', 'dbname'=>'project_status', 'port'=>'3306', 'user_name'=>'root', 'passwd'=>'k06931!');
+    if (! $dbc_m)
+    {
+        $c->Messages('warning',  decode('utf8','工程管理系统连接失败...\n\t\t\t\t\t --open_job.post'));
+        exit(0);
+    }
+    
+    # --查询料号生产历史list
+    my $jobs_version = uc(substr($curJob,0,11));
+    print ("\$jobs_version $jobs_version\n");
+    my $query_sql = "select JOB,SITE from project_status_jobmanage where substring(job,1,11)='$jobs_version'";
+    
+    my $sth_query = $dbc_m->prepare($query_sql);
+    $sth_query->execute() or die "无法执行SQL语句:$dbc_m->errstr";
+    
+    my @jobs;
+    my @sites;
+    my $fisrt_site;
+    my $same_site;
+    while(my @info = $sth_query->fetchrow_array()){
+        push @jobs,$info[0];
+        push @sites,$info[1];
+        if (!defined $fisrt_site){
+            $fisrt_site = $info[1];
+        }elsif($fisrt_site ne $info[1]){
+            $same_site = "no";
+        }
+    }
+    
+    if ($same_site eq "no"){
+        my $mess_info = "各工厂生产料号版本信息记录:\n料号版本:\t\t生产厂区:\n";
+        for (my $i=0; $i<=$#jobs; $i++){
+            $mess_info = $mess_info . "$jobs[$i]\t$sites[$i]\n";
+        }
+        $mess_info = $mess_info . "\n**此料号在不同事业部生产,请注意添加标记的一致性!**";
+        $mess_info = decode('utf8',$mess_info);
+        $c->Messages('warning', "$mess_info");
+    }
+}
+
+# --结束启动项
+END
+{
+    # --断开Oracle连接
+    $dbc_m->disconnect if ($dbc_m);
+}
+
+
+sub WindowUpdateBarCodeWeek{
+    #####################################################更新二维码symbol周期###############################################################
+    # --获取周期年、周
+    my ($Year,$Week) = &GET_DATE_CODE();
+    my $weekFormat;
+
+    $f->INFO(entity_type => 'job',
+             entity_path => "$curJob",
+             data_type => 'SYMBOLS_LIST');
+    my @symbol_list = @{$f->{doinfo}{gSYMBOLS_LIST}};
+
+    # --获取二维码symbol
+    my @QR_CODE_LIST = ();
+    foreach my $h(@symbol_list){
+        if ($h =~ /barcode/) {
+            push (@QR_CODE_LIST,$h);
+        }
+    }
+
+    $f->INFO(entity_type => 'matrix',
+             entity_path => "$curJob/matrix",
+             data_type => 'ROW');
+    my @layerName = @{$f->{doinfo}{gROWname}};
+    my @layerCont = @{$f->{doinfo}{gROWcontext}};
+    my @layerType = @{$f->{doinfo}{gROWlayer_type}};
+    my @layerSide = @{$f->{doinfo}{gROWside}};
+
+    # --获取外层线路、阻焊、字符层
+    my @layerList = ();
+    for(my $i=0;$i<=$#layerName;$i++){
+        if ($layerCont[$i] eq "board" and ($layerType[$i] eq "signal" or $layerType[$i] eq "solder_mask" or $layerType[$i] eq "silk_screen") and ($layerSide[$i] eq "top" or $layerSide[$i] eq "bottom")) {
+            push (@layerList,$layerName[$i]);
+        }
+    }
+
+    $f->INFO(entity_type => 'job',
+             entity_path => "$curJob",
+             data_type => 'STEPS_LIST');
+
+    # --获取step列表
+    my @stepList = @{$f->{doinfo}{gSTEPS_LIST}};
+    my $outPath = "c:/tmp/output_sym_info";
+    if ($^O =~ /linux/) {
+        $outPath = "/tmp/output_sym_info";
+    }
+
+    if (@QR_CODE_LIST) {
+        foreach my $j(@stepList){
+            if ($j =~ /^(edit(\d+)?|set(\d+)?)$/) {
+                $f->COM("open_entity,job=$curJob,type=step,name=$j,iconic=no");
+                $f->AUX("set_group,group=$f->{COMANS}");
+                $f->COM("clear_layers");
+                $f->COM("filter_reset,filter_name=popup");
+                $f->COM("affected_layer,mode=all,affected=no");
+                foreach my $k(@QR_CODE_LIST){
+                    foreach my $l(@layerList){
+                        $f->COM("affected_layer,name=$l,mode=single,affected=yes");
+                        $f->COM("filter_set,filter_name=popup,update_popup=no,include_syms=$k");
+                        $f->COM("filter_atr_set,filter_name=popup,condition=no,attribute=date_format,text=");
+                        $f->COM("filter_area_strt");
+                        $f->COM("filter_area_end,layer=,filter_name=popup,operation=select,area_type=none,inside_area=no,intersect_area=no");
+                        $f->COM("get_select_count");
+                        if ($f->{COMANS} > 0) {
+                            $f->COM("info,args=-t layer -e $curJob/$j/$l -m script -d FEATURES -o select,out_file=$outPath,write_mode=replace,units=inch");
+                            open(STAT, $outPath) or die "can't open file $outPath: $!";
+                            while(<STAT>) {
+                                if ($_ =~ /^#P/) {
+                                    my @SYMTYPE = split('=',$_);
+                                    my @barInfo = split(' ',$SYMTYPE[0]);
+                                    if ($barInfo[3] =~ /^barcode/){
+                                        my ($text1,$text2,$text3,$text4,$text5) = &get_text_format($barInfo[3]);
+                                        print ("\$text1 $text1 \$text2 $text2 \$text3 $text3 \$text4 $text4 \$text5 $text5\n");
+                                        if ($SYMTYPE[1] =~ /^yyww/){
+                                            $weekFormat = $text1.$text2.$Year.$Week.$text4.$text5;
+                                        }elsif($SYMTYPE[1] =~ /^wwyy/){
+                                            $weekFormat = $text1.$text2.$Week.$Year.$text4.$text5;
+                                        }
+                                        
+                                        if ($text1 and $text2 and $text3 and $text4 and $text5 and $weekFormat){
+                                            $f->COM("sel_change_txt,text=$weekFormat,x_size=-1,y_size=-1,w_factor=-1,polarity=no_change,mirror=no_change,fontname=");
+                                        }else{
+                                            $c->Messages_Sel('question', "无法检查到symbol($barInfo[3])二维码格式\n系统默认格式: 123456;8888 001\n系统默认属性: date_format=(yyww|wwyy)  \n\n\t\t请自行检查更新!");
+                                        }
+                                    }
+                                }
+                            }
+                            close(STAT);
+                        }
+                        $f->COM("affected_layer,mode=all,affected=no");
+                        $f->COM("filter_reset,filter_name=popup");
+                    }
+                }
+                $f->COM("editor_page_close");
+            }
+        }
+    }
+}
+
+sub get_text_format
+{
+    my $barcode = shift;
+    $f->INFO(units => 'mm', entity_type => 'symbol',
+         entity_path => "$curJob/$barcode",
+         data_type => 'ATTR');
+         
+     my @gATTRname = @{$f->{doinfo}{gATTRname}};
+     my @gATTRval  = @{$f->{doinfo}{gATTRval}};
+     for(my $i=0; $i<=$#gATTRname; $i++){
+         if ($gATTRval[$i] =~ /(\w+)(;|,|.)(\d+)( )(\d+)/){
+             # print ("$1 $1\n");
+             # print ("$2 $2\n");
+             # print ("$3 $3\n");
+             # print ("$4 $4\n");
+             # print ("$5 $5\n");
+             return ($1,$2,$3,$4,$5);
+         }
+     }
+}
+#####################################################更新二维码symbol周期###############################################################
+
+#/************************
+# 函数名: GET_DATE_CODE
+# 功  能: 获取周期信息
+# 参  数: NONE
+# 返回值: $Value
+#***********************/
+sub GET_DATE_CODE
+{
+    # --定义单双周
+    my ($S_Week,$D_Week);
+    # --取出年份
+    my $Year=substr (POSIX::strftime("%Y",localtime(time())),2,2);
+    # --取出当前周为第几周 （如需要测试往后几天或往前几天的时间，如往后算四天：time() + 4*86400  - 平太阳日（一天一夜）为：86400秒）
+    my $Week = POSIX::strftime("%W", localtime(time()));    
+    
+    # --重新定义双周（奇数周时减一，偶数周时不变）
+    if($Week % 2 == 1){
+        $S_Week=($Week-1==0) ? 2 : ($Week-1);
+    }elsif($Week % 2 == 0){
+        $S_Week=$Week
+    }
+    # --新定义单周（奇数周时不变，偶数周时减一）
+    if($Week % 2 == 1){
+        $D_Week=$Week
+    }elsif($Week % 2 == 0){
+        $D_Week=$Week-1
+    }
+    
+    # --当第一年的第一周为00时，默认为第一周
+    $Week = 1 if ($Week == 0);
+    
+    # --不允许出现第五十三周
+    $Week = 52 if ($Week > 52);
+    
+    # --当只有一位数时，补齐两位数
+    $Week=(length $Week == 1) ? "0$Week" : "$Week";
+    $D_Week=(length $D_Week == 1) ? "0$D_Week" : "$D_Week";
+    $S_Week=(length $S_Week == 1) ? "0$S_Week" : "$S_Week";
+    
+    # --返回元组
+    return ($Year,$Week);
+}
+
+=cut
+#####################################################更新二维码symbol周期(symbol修改方法)###############################################################
+my ($Year,$Week) = &GET_DATE_CODE();
+my @symlist = ("qr_code_yyww","qr_code_wwyy");
+my $weekFormat = $Year.$Week;
+foreach my $h(@symlist){
+    # --区分周年、年周
+    if ($h eq "qr_code_wwyy") {
+        $weekFormat = $Week.$Year;
+    }
+    
+    $f->INFO(entity_type => 'symbol',
+         entity_path => "$curJob/$h",
+         data_type => 'EXISTS');
+    
+    # --存在当前symbol时自动修改周期
+    if ($f->{doinfo}{gEXISTS} eq "yes") {
+        $f->COM("open_entity,job=$curJob,type=symbol,name=$h,iconic=no");
+        $f->COM("work_layer,name=$h");
+        $f->COM("sel_change_txt,text=$weekFormat,x_size=-1,y_size=-1,w_factor=-1,polarity=no_change,mirror=no_change,fontname=");
+        $f->COM("display_layer,name=$h,display=no,number=1");
+        $f->COM("editor_page_close");
+    }
+}
+#####################################################更新二维码symbol周期###############################################################
+=cut

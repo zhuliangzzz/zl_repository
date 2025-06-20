@@ -1,0 +1,208 @@
+#!c:/perl/bin/perl -w
+#################################################
+#scripts:如果移到特定的symbol提示且强行退出.
+#author: chris
+#date:2015.10.13
+#purpose:防呆用，防止cam移到不能移的symbol.
+#################################################
+#use lib "$ENV{GENESIS_EDIR}/all/perl";
+use lib "/incampro/release/app_data/perl";
+use lib "/incam/$ENV{INCAM_RELEASE_VER_VGT}/app_data/perl";
+use Tk;
+use Genesis;
+use encoding 'euc_cn';
+
+#use Win32::API;
+require Tk::Table;
+
+$f = new Genesis();
+#define genesis env:
+my $job_name = $ENV{JOB};
+my $job_step = $ENV{STEP};
+our @get_layer_list;
+our @get_layer;
+my @fill_array;
+
+#通过DO_INFO判断是否有选中特定的symbol.
+$f->COM("get_affect_layer");
+@get_layer_list = split(/ /, $f->{COMANS});
+$f->COM("get_work_layer");
+@get_layer = split(/ /, $f->{COMANS});
+foreach my $m (@get_layer) {
+	our $have_save = "no";
+	foreach my $n (@get_layer_list) {
+		if ($m eq "$n") {
+			$have_save = "yes";
+		}
+	}
+	if ($have_save eq "no") {
+		push(@get_layer_list, $m);
+	}
+} 
+        
+our $result = "no";
+if ($job_step eq "panel") {
+    $f->COM("get_select_count");
+    if ($f->{COMANS} != 0) {
+        #通过DO_INFO判断是否有选中特定的symbol.
+
+        foreach my $tmp_layer (@get_layer_list) {
+            my $stat_file = "/tmp/tmp.feature";
+            if ( -e "$stat_file" ) {
+                unlink("$stat_file");
+            }
+            my @file_list = ();
+            $f->COM("info, out_file=$stat_file,args=  -t layer -e $job_name/$job_step/$tmp_layer -m display -d FEATURES  -o select");
+            if (-e $stat_file) {
+                open(STAT, $stat_file) or die "can't open file $stat_file: $!";
+                while(<STAT>) {
+                    push(@file_list, $_);
+                }
+                
+                close(STAT);
+                
+                # --<DATA>移出到这里,因为当选中有两个或以上PAD时,<DATA>循环完一轮就不再循环. AresHe 2021.9.20
+                for (<DATA>)
+                {
+                    foreach $tmp (@file_list) {
+                        if ($tmp ne "") {
+                            my @test = split(' ',$tmp);
+                            if ($test[0] eq "#P") {
+                                my $symbol_name = $test[3];
+                                my $sym_x = $test[1];
+                                my $sym_y = $test[2];
+                                
+                                # --检测移动的图形是否在不可移动范围内   Chuang.Liu 2019.03.21                            
+                                # for (<DATA>)
+                                # {
+                                    if ($_ =~ /$symbol_name/)
+                                    {
+                                        our $fill_hash = {"layer_name" =>"$tmp_layer",
+                                                     "symbol_x" => "$sym_x",
+                                                     "symbol_y"   => "$sym_y",
+                                                     "symbol_name"  => "$symbol_name"
+                                                     };
+                                        $result = "yes";
+                                        push(@fill_array, $fill_hash);
+                                    }
+                                # }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+} 
+
+my $stat_file = "/tmp/tmp.feature";
+if ( -e "$stat_file" ) {
+    unlink("$stat_file");
+}
+
+#print 'xxxxxxxxxxxxxxx'. "\n";
+#print @get_layer_list . "\n";
+#print 'xxxxxxxxxxxxxxxxx' . "\n";
+
+# === song 检查料号锁 ===
+my $get_status = system("python /frontline/incam/server/site_data/scripts/hdi_scr/Tools/job_lock/pre_move_check.py $job_step @get_layer_list");
+if ($get_status != 0) {
+	exit 0;
+}
+            
+if ($result eq "yes") {
+    #gui:
+    
+    my $mw = MainWindow->new( -title =>"胜宏科技");
+#    $mw->resizable(300,100);
+#    $mw->geometry("300x100+150+5");
+    $mw->resizable(300,100);
+#    $mw->resize(300,100);
+    $mw->update;
+    $mw->protocol(WM_DELETE_WINDOW, sub{return -1});
+    #Win32::API->new("user32","SetWindowPos",[qw(N N N N N N N)],'N')->Call(hex($mw->frame()),-1,0,0,0,0,3);
+    
+    my $CAM_frm = $mw->Frame(-bg => '#9BDBDB',-borderwidth =>2,-relief => "raised",-height => 20)->pack(-side=>'top',-fill=>'x');
+    $CAM_frm->Label(-text => '胜宏科技CAM Panel板边Symbol移动提示',-font => 'charter 16 bold',-bg => '#9BDBDB')->pack(-pady => 5);
+    $CAM_frm->Label(-text => '作者:chris  Ver:1.1',-font => 'charter 10',-bg => '#9BDBDB')->pack(-side=>'right', -padx => 10, -pady => 5);
+                                             
+    #add the table                                         
+    my @col_headings = ("层名", "symbol名", "坐标X", "坐标Y");
+    my $colum = scalar(@col_headings);
+
+    my $table_frame = $mw->Frame(-relief => 'groove',
+                                 -bg => '#9BDBDB',
+                                 -bd => 2)->pack(-side => 'top',
+                                                 -fill => 'both',
+                                                 -expand => 'y',
+                                                 -padx => 1,
+                                                 -pady => 0);
+
+    my $table = $table_frame->Table(-columns => $colum,
+                                    -rows => 7,
+                                    -fixedrows => 1,
+                                    -scrollbars => 'oe',
+                                    -relief => 'groove');
+    my $n = 1;
+    foreach my $col (@col_headings) {
+        
+        my $title_button = $table->Button(-text => "$col",
+                                          -command => sub {},
+                                          -width => 15,
+                                          -activebackground=>'#9BDBDB',
+                                          -font=> 'simkai 10',
+                                          -state=> "normal",
+                                          -height=> 1
+                                          )->pack(-side => 'left',
+                                                  -padx => 15);        
+        $table->put(0, $n, $title_button);
+        $n++;                    
+    }
+    
+    my $i = 1;
+    foreach my $value (@fill_array) {
+        #set the color.
+        my $color = "#fcc64d";
+        
+        my $first_col = $table->Label(-text => "$value->{layer_name}", -width => 17, -height=>'2', -font => 'SimSun 12',-relief =>'groove',-background => "$color");
+        $table->put($i, 1, $first_col);
+
+        my $second_col = $table->Label(-text => "$value->{symbol_name}", -width => 17, -height=>'2', -font => 'SimSun 12',-relief =>'groove',-background => "$color");
+        $table->put($i, 2, $second_col);
+        
+        my $third_col = $table->Label(-text =>$value->{symbol_x}, -width => 17, -height=>'2',  -font => 'SimSun 12',-relief =>'groove',-background => "$color");
+        $table->put($i, 3, $third_col);
+                                                        
+        my $four_col = $table->Label(-text =>$value->{symbol_y}, -width => 17, -height=>'2',  -font => 'SimSun 12',-relief =>'groove',-background => "$color");
+        $table->put($i, 4, $four_col);
+        
+        $i++;
+    }
+    
+    $table->pack(-side=>"top", -fill=>'x');
+    my $Bot_frm = $mw->Frame(-bg => '#9BDBDB',-borderwidth =>2,-height => 40)->pack(-side=>'bottom',-fill=>'x');
+    $Bot_frm->Label(-text => '以上Symbol不能移动，程序强行退出',-font => 'charter 10',-bg => '#9BDBDB',-fg=>'red')->pack(-side=>'left', -padx => 10, -pady => 5);
+    my $array_button = $Bot_frm->Button(-text => '强行退出',
+                                          -command => sub {&exit_script},
+                                          -width => 10,
+                                          -activebackground=>'#9BDBDB',
+                                          -font=> 'charter 12',
+                                          -height=> 2
+                                          )->pack(-side => 'right',
+                                                  -padx => 20);    
+    MainLoop;
+}
+
+sub exit_script {
+    $f->COM("skip_current_command");
+    exit 0;
+}
+
+# LDI输出防呆：r0  --周涌要求取消 2021.9.22
+
+__DATA__  以下数据为不允许移动的图形Symbol名
+PE-3000光学点(长短边）：sh-bb/sh-bb1/sh-b2013/sh-b12013
+铆钉图标（长边）：sh-mdk-t/sh-mdk-b/sh-rj2-t/sh-rj2-b/hdi1-mdk-t/hdi1-mdk-b
+铆钉图标（短边）：sh-mdk-t/sh-mdk-b/rm_dw_topmin/rm_dw_botmin/rm_dw_topqie/rm_dw_botqie/rm_dw_top-t/rm_dw_top-b/rm_dw_bot-t/rm_dw_bot-b
+铆钉C靶（短边）：sh-fdk/chris-rj2-t/chris-rj2-b
+铆钉备靶（短边）：sh-rj3-t/sh-rj3-b

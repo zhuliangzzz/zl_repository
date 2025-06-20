@@ -1,0 +1,302 @@
+#!c:/perl/bin/perl -w
+
+#### write by hyp, Sep 26, 2017
+use strict;
+use Tk;
+use Tk::Tree;
+use encoding 'utf-8';
+use DBI;
+use Net::FTP;
+
+require Tk::LabFrame;
+require Tk::LabEntry;
+
+use lib '/incam/release/app_data/perl';
+use incam;
+
+my $host = shift;
+my $f = new incam($host);
+
+my $images_path = "/incam/server/site_data/scripts/db_management";
+
+my @jobs_list = ();
+my @bak_path = ();
+
+#### get joblist
+&get_jobslist();
+
+#### GUI
+my $mw3_1 = MainWindow->new( -title =>"胜宏科技");
+$mw3_1->bind('<Return>' => sub{ shift->focusNext; });
+$mw3_1->protocol("WM_DELETE_WINDOW", \&OnQuit);
+$mw3_1->geometry("+600+80");
+$mw3_1->raise( );
+
+my $sh_log_frm = $mw3_1->Frame(-bg => '#9BDBDB',-borderwidth =>2,-relief => "raised",-height => 5)->pack(-side=>'top',-fill=>'both');
+
+my $sh_log = $sh_log_frm->Photo('info',-file => "$images_path/sh_log.xpm");
+
+my $image_label = $sh_log_frm->Label( -image => $sh_log, -border => 1, -relief => 'solid' )->pack(-side => 'left', -padx => 5, -pady => 5);  
+
+$sh_log_frm->Label(-text => '调入非常规资料',-font => 'charter 20 bold',-bg => '#9BDBDB')->pack();
+$sh_log_frm->Label(-text => 'Author:hyp Ver:1.0 Date:Sep.26.2017',-font => 'charter 10',-bg => '#9BDBDB')->pack(-side=>'right', -padx => 10); 
+
+my $tab_frm = $mw3_1->LabFrame(-label => '搜索',-font => 'SimSun 10',-bg => '#9BDBDB',-fg => 'blue',)->pack(-side=>'top',-fill=>'both');
+
+#my $path_sel_tmp = $tab_frm->Frame(-bg => '#9BDBDB')->pack(-side=>'top',-fill=>'both');
+
+#my $dbHost = 'ibm6';
+#my $pathJob = '/opt/db_management/abnormal_jobs';
+#my $path_tmp = "$dbHost:$pathJob";
+ 
+#$path_sel_tmp->LabEntry(-label => '',
+#						-labelBackground => '#9BDBDB',
+#						-labelFont => 'SimSun 14',
+#						-textvariable => \$path_tmp,
+#						-bg => 'white',
+#						-width => 40,
+#						-relief=>'ridge',
+#						-labelPack => [qw/-side left -anchor w/],
+#						-state => 'disable')->pack(-side => 'left',-padx => 3,-pady => 5);
+
+##########
+my $job_name = "此处输入料号回车搜索";
+my $input_name = $tab_frm->LabEntry(-label => "关键字:",-labelBackground => '#9BDBDB',-labelFont => 'SimSun 15',-textvariable => \$job_name,-bg => 'white',-fg => 'grey',-width => 30,-relief=>'ridge',-labelPack => [qw/-side left -anchor w/])->pack(-side => 'left',-padx => 1,-pady => 5);
+
+$input_name->bind('<Button-1>',\&update_input_frm);
+$input_name->bind('<Button-2>',\&update_input_frm);
+$input_name->bind('<Button-3>',\&update_input_frm);		
+foreach my $key (qw/Return KP_Enter/){                                         
+	$input_name->bind("<$key>",\&jobfilter);
+}
+my $search_button = $tab_frm->Button(-text => "查找", -command => sub {&jobfilter;},-width => 3,-bg => '#9BDBDB',-font=> 'SimSun 12',-height=> 1)->pack(-side =>'left',-padx => 5,-pady => 5);
+
+####
+my $importOption_frm = $mw3_1->Frame(-bg => '#9BDBDB',-borderwidth =>2,-relief => "flat",-height => 5)->pack(-side=>'top',-fill=>'both');
+my $importOption = 1;
+my $if_jsz_select_no = $importOption_frm->Radiobutton(-text => '导入并打开', -variable => \$importOption, -background =>'#9BDBDB', -font => 'SimSun 11', -state=>"normal", -value => 1)->pack(-side   => "left", -padx   => 2,	-pady => 5,	-fill => "both");
+my $if_jsz_select_no2 = $importOption_frm->Radiobutton(-text => '仅仅导入', -variable => \$importOption, -background =>'#9BDBDB', -font => 'SimSun 11', -state=>"normal", -value => 0)->pack(-side => "left", -padx => 2,	-pady => 5,	-fill => "both");
+
+##############										
+my $select_frm_lay = $mw3_1-> Frame(-bg => '#9BDBDB')->pack(-side=>'top',-fill=>'both',-expand=>1);
+my $select_all_lay = $select_frm_lay-> Frame(-bg => '#9BDBDB')->pack(-side=>'top',-fill=>'both',-expand=>1);
+my $select_lay_list = $select_all_lay-> Frame(-bg => '#9BDBDB')->pack(-side=>'left',-padx => 15,-fill=>'both');
+my $sel_job_lb = $select_lay_list->Scrolled('Listbox',-scrollbars=>'oeos',-selectbackground=>'blue',-selectforeground=>'white',-selectmode=>'single',-height => 16, -background=>'white',-foreground=>'black',-font=> 'charter 12 bold', -width=>30)->pack(-side=>'top',-fill=>'x');
+foreach my $tmp (@jobs_list)
+{
+	$sel_job_lb -> insert('end', "$tmp");	
+}	
+
+my $select_frm_tmp = $select_all_lay-> Frame(-bg => '#9BDBDB')->pack(-side=>'right',-padx => 24);
+
+my $button_frm = $select_frm_lay->Frame(-bg => '#9BDBDB',)->pack(-side=>'bottom',-fill=>'x'); 
+my $run_button = $button_frm->Button(-text => '导入',
+									-command => sub {&run_import_tgz($importOption)},
+									-width => 10,
+									-activebackground=>'green',
+									-bg => '#9BDBDB',
+									-font=> 'charter 10 bold',
+									-height=> 2)->pack(-side => 'left',-padx => 15,-pady => 5);												  
+
+my $exit_button = $button_frm->Button(-text => '退出',
+									-command => sub {exit 0},
+									-width => 10,
+									-activebackground=>'red',
+									-bg => '#9BDBDB',
+									-font=> 'charter 10 bold',
+									-height=> 2)->pack(-side => 'right', -padx => 15, -pady => 5);
+MainLoop;
+
+###################################################
+sub OnQuit {
+	my $ans = $mw3_1->messageBox(-icon => 'question',-message => '确定退出？',-title => 'quit',-type => 'YesNo');
+	return if $ans eq "No";
+	exit 0;
+}
+
+#############################
+sub run_import_tgz
+{
+	$importOption = shift;
+	
+	my @selectJobImp;
+	foreach ($sel_job_lb->curselection())
+	{	
+		my $tmp_jobs = $sel_job_lb->get($_);
+		push (@selectJobImp,$tmp_jobs);		
+	}
+	
+	my $layer_no = scalar(@selectJobImp);
+	if ( $layer_no == 0 ) {
+		&run_message_no_sel;
+		$button_frm->withdraw;
+	}
+
+	my $localPathJob = '/tmp';
+	&ftpJob("$selectJobImp[0].tgz","$localPathJob");
+	
+	if ( $importOption == 1 )
+	{
+		my $rv = &checkJobExist($selectJobImp[0]);
+		if ( $rv == 0 ) 
+		{	$f->COM("import_open_job,db=db1,path=${localPathJob}/$selectJobImp[0].tgz,name=$selectJobImp[0],analyze_surfaces=no,keep_nls=no");
+			$f->COM("open_job,job=$selectJobImp[0],open_win=yes");
+			$f->COM("check_inout,job=$selectJobImp[0],mode=out,ent_type=job");
+			&deleteServerJob($selectJobImp[0],$localPathJob);
+			&deleteMysqlLog($selectJobImp[0]);
+			$mw3_1->destroy;
+			$f->PAUSE("Done.");
+			exit 0;
+		}
+	} else {
+		my $rv = &checkJobExist($selectJobImp[0]);
+		if ( $rv == 0)
+		{
+			$f->COM("import_job,db=db1,path=${localPathJob}/$selectJobImp[0].tgz,name=$selectJobImp[0],keep_nls=no");
+			&deleteServerJob($selectJobImp[0],$localPathJob);
+			&deleteMysqlLog($selectJobImp[0]);
+			$mw3_1->destroy;
+			$f->PAUSE("Done.");
+			exit 0;
+		}
+	}
+
+}
+
+sub run_message_no_sel
+{
+	my $ans0 = $mw3_1->messageBox(-icon => 'question',-message => '请选择Job!',-title => 'quit',-type => 'YesNo');
+	return if $ans0 eq "Yes";
+	exit 0;
+}
+
+sub get_jobslist
+{
+	my $dbname = "incam_management";
+	my $location = "192.168.2.19";
+	my $port = "3306"; 
+	my $database = "DBI:mysql:$dbname:$location:$port";
+	my $db_user = "root";
+	my $db_pass = "k06931!";
+	my $dbh = DBI->connect($database,$db_user,$db_pass);
+	my $sth;
+	
+	# my $sql = "SELECT job FROM abnormal_jobs";
+	 my $sql = "SELECT JOB, `Backup Path` FROM abnormal_jobs";
+	
+	$sth = $dbh->prepare($sql);
+	$sth->execute() or die "无法执行SQL语句:$dbh->errstr"; 
+	
+    while ( my @recs=$sth->fetchrow_array)
+    {
+    
+        # add filter /data3 #
+        if  ( $recs[1] =~ /\/data3.*/ ) {
+        push ( @jobs_list, $recs[0] );
+        push ( @bak_path, $recs[1]);
+        }
+    }
+    
+	$sth->finish;
+	$dbh->disconnect;
+}
+
+sub checkJobExist
+{
+	my $job = shift;
+	$f->INFO(angle_direction => 'ccw', entity_type => 'job', entity_path => "$job", data_type => 'EXISTS');
+	if ( $f->{doinfo}{gEXISTS} eq 'yes' )
+	{
+		$mw3_1->messageBox(-icon => 'error',-message => 'Job已存在,导入失败.',-title => 'Error',-type => 'Yes');
+		return 1;
+	}
+	return 0;
+}
+
+sub update_input_frm {
+	$job_name = "";
+	$input_name->configure(-fg => 'black');
+}
+
+sub jobfilter {
+	my $inputName = $input_name -> get;
+	
+	$sel_job_lb -> delete("0","end");
+	
+	$inputName =~ s/\*/\.\*/g;
+	
+	$inputName =~ s/\+/\\+/g;
+
+	foreach ( @jobs_list )
+	{
+		if ( $_ =~ m/\A.*$inputName.*\Z/ )
+		{
+			$sel_job_lb -> insert('end',$_);		
+		}
+	}
+	
+}
+
+sub ftpJob
+{
+	my $ftpJob = shift;
+	my $localPath = shift;
+	
+	# my $ftpHost = "192.168.2.19";
+	my $ftpHost = "172.20.218.191";
+	my $ftp = Net::FTP -> new ( $ftpHost, Debug => 0, Timeout => 10, Passive => 1 ) or die "Cannot connect to ibm6: $! ";
+	
+	$ftp -> login("Incam","incam")  or die "Cannot login ", $ftp -> message;
+	$ftp -> cwd("/data3/db_management/abnormal_jobs/") or die "Cannot change working directory ", $ftp -> message;
+	
+	$ftp -> binary();
+	$ftp -> get("$ftpJob","$localPath/$ftpJob") or die "get failed ", $ftp -> message;
+	
+	$ftp -> quit;
+}
+
+sub deleteServerJob
+{
+	my $jobName = shift;
+	my $ftpTmpPath = shift;
+	
+	unlink "$ftpTmpPath/$jobName.tgz";
+	
+	my $ftpHost = "172.20.218.191";
+	
+	my $ftp = Net::FTP -> new ( $ftpHost, Debug => 0, Timeout => 10, Passive => 1 ) or die "Cannot connect to ibm6: $! ";
+	
+	$ftp -> login("Incam","incam")  or die "Cannot login ", $ftp -> message;
+	$ftp -> cwd("/data3/db_management/abnormal_jobs/") or die "Cannot change working directory ", $ftp -> message;
+	
+	$ftp -> delete("$jobName.tgz") or die "delete failed ", $ftp -> message;
+	
+	$ftp -> quit;	
+	
+	return 0;	
+}
+
+sub deleteMysqlLog
+{
+	my $delJob = shift;
+	
+	my $dbname = "incam_management";
+	my $location = "192.168.2.19";
+	my $port = "3306"; 
+	my $database = "DBI:mysql:$dbname:$location:$port";
+	my $db_user = "root";
+	my $db_pass = "k06931!";
+	my $dbh = DBI->connect($database,$db_user,$db_pass);
+	my $sth;
+	
+	my $sql = "DELETE FROM abnormal_jobs WHERE Job = \'$delJob\'";
+	
+	$sth = $dbh->prepare($sql);
+	$sth->execute() or die "无法执行SQL语句:$dbh->errstr"; 
+    
+	$sth->finish;
+	$dbh->disconnect;
+	
+	return 0;
+}
+

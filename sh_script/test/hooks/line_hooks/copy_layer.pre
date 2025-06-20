@@ -1,0 +1,313 @@
+#!/usr/bin/env python26
+# -*- coding: utf-8 -*-
+# --------------------------------------------------------- #
+#                VTG.SH SOFTWARE GROUP                      #
+# --------------------------------------------------------- #
+# @Author       :    Chao.Song
+# @Mail         :
+# @Date         :    2022.02.23
+# @Revision     :    1.0.0
+# @File         :    affected_filter.pre(From display_layer.pre)
+# @Software     :    PyCharm
+# @Usefor       :    显示层别hooks
+# --------------------------------------------------------- #
+
+_header = {
+    'description': '''
+-> 本程序主要服务于胜宏科技（惠州），任何其他团体或个人如需使用，必须经胜宏科技（惠州）相关负责
+   人及作者的批准，并遵守以下约定；
+1> 本着尊重创作者的劳动成果，任何团体或个人在使用此程序的时候，均需要知会此程序的原始创作者；
+2> 在任何场合宣导、宣传，在任何文件、报告、邮件中提及本程序的全部或部分功能，均需要声明此程序的
+   原始创作者；
+3> 在任何时候对本程序做部分修改或者是升级时，必须要保留文件的原始信息，包括原始文件名、创作者及
+   联系方式、创作日期等信息，且不得删除程序中的源代码，只能进行注释处理；
+'''
+}
+'''
+               _ooOoo_
+              o8888888o
+              88" . "88
+              (| -_- |)
+              O\  =  /O
+           ____/`---'\____
+         .'  \\|     |//  `.
+        /  \\|||  :  |||//  \
+       /  _||||| -:- |||||-  \
+       |   | \\\  -  /// |   |
+       | \_|  ''\---/''  |   |
+       \  .-\__  `-`  ___/-. /
+     ___`. .'  /--.--\  `. . __
+  ."" '<  `.___\_<|>_/___.'  >'"".
+ | | :  `- \`.;`\ _ /`;.`/ - ` : | |
+ \  \ `-.   \_ __\ /__ _/   .-` /  /
+======`-.____`-.___\_____/___.-`____.-'======
+               `=---='
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+       佛祖保佑       永无BUG
+'''
+
+import os
+import platform
+import sys
+import json
+from PyQt4 import QtCore, QtGui
+
+# --导入Package
+# --加载相对位置，以实现InCAM与Genesis共用
+if platform.system() == "Windows":
+    sys.path.append(r"Z:/incam/genesis/sys/scripts/Package")
+else:
+    sys.path.append(r"/incam/server/site_data/scripts/Package")
+from messageBox import msgBox
+import genCOM_26 as genCOM
+import MySQL_DB
+import Oracle_DB
+import time
+
+GEN = genCOM.GEN_COM()
+
+from mwClass_V4 import AboutDialog
+import random
+def send_message_to_director(message_result, job_name, label_result, password_approve=False):
+    """发送审批结果界面 20221122 by lyh"""    
+    passwd = str(random.random() *10000)[:4]
+    while "." in passwd:
+        passwd = str(random.random() *10000)[:4]
+        time.sleep(0.0001)
+        
+    # 验证码接收机器人url
+    url = "https://oapi.dingtalk.com/robot/send?access_token=412a2d8e3d567c1be81fcd0912e3b27cfa46a10150863734ae7eefb304a3a4cb"
+    if u"重要项目" in message_result:
+        url = "https://oapi.dingtalk.com/robot/send?access_token=2049ceb982d2a0abd97528190190a1c171193455965e5f961f837ad6db398571"
+    
+    submitData = {
+        'site': u'HDI板事业部',
+        'job_name': job_name,
+        'pass_tpye': 'CAM',
+        'pass_level': 8,""
+        'assign_approve': '83288|51059|84310',
+        'pass_title': message_result,
+        'oa_approval_result': {"passwd": passwd,"machine_url": url,},
+    }
+    
+    if password_approve:
+        # 验证码主管审批
+        Dialog = AboutDialog(label_result, cancel=False, passwdCheck=True, passwd=passwd, appData=submitData, style=None)
+    else:
+        Dialog = AboutDialog(label_result, cancel=True, appCheck=True, appData=submitData, style=None)
+    Dialog.exec_()
+
+    # --根据审批的结果返回值
+    if Dialog.selBut in ['x', 'cancel']:
+        return False
+    if Dialog.selBut == 'ok':
+        return True
+    
+    return False
+
+
+def unicode_convert(input):
+    """
+    用于解决json.load json中带u开头的问题
+    :param input:
+    :return:
+    """
+    if isinstance(input, dict):
+        new_dict = {}
+        for key, value in input.iteritems():
+            new_dict[unicode_convert(key)] = unicode_convert(value)
+        return new_dict
+        # return {unicode_convert (key): unicode_convert (value) for key, value in input.iteritems ()}
+    elif isinstance(input, list):
+        return [unicode_convert(element) for element in input]
+    elif isinstance(input, unicode):
+        return input.encode('utf-8')
+    else:
+        return input
+
+
+class DisPlay(object):
+    def __init__(self):
+        hook_tmp_file = sys.argv[1]
+        self.hook_dict = self.get_parm_dict(hook_tmp_file)
+        # print self.hook_dict
+
+        # self.hook_dict = {'dest_step': '', 'source_job': 'b19010ob114f1',
+        #                   'dest_layer': 'l1;l2;l3;l4;l5;l6;l7;l8;l9;l10;dd1-10;out_rout',
+        #                   'copy_lpd': 'new_layers_only', 'dest': 'layer_name', 'copy_sr_feat': 'no', 'invert': 'no',
+        #                   'mode': 'replace', 'copy_notes': 'no', 'copy_attrs': 'no', 'source_layer': 'p1',
+        #                   'source_step': 'edit'}
+
+        self.job_name = os.environ.get("JOB", None)
+        self.step_name = os.environ.get("STEP", None)
+        self.job_lock = '%s_job_lock.json' % self.job_name
+
+        # print self.job_name
+        PRODUCT = os.environ.get('INCAM_PRODUCT', None)
+        if platform.system() == "Windows":
+            self.userDir = "%s/fw/jobs/%s/user" % (os.environ.get('GENESIS_DIR', 'D:/genesis'), self.job_name)
+        else:
+            self.userDir = os.environ.get('JOB_USER_DIR', None)
+            if not PRODUCT and not self.userDir:
+                # --Linux环境下网络版genesis没有定义INCAM_PRODUCT环境变量
+                self.userDir = "%s/fw/jobs/%s/user" % (os.environ.get('GENESIS_DIR', '/genesis'), self.job_name)
+        self.pre_lock = self.read_file()
+
+        print self.pre_lock
+
+    def run(self):
+        #GEN.COM('get_user_name')
+        #username = GEN.COMANS
+        #if username in ["84311", "83288"]:
+        source_job = self.hook_dict['source_job'] 
+        if source_job[1:12] != self.job_name[1:12]:
+            log = u"检测到拷贝型号{0} 非当前型号{1}的小版本，禁止从其他型号copy资料到当前型号！<br>拷贝的step跟层别：{2} {3}".format(
+                source_job, self.job_name, self.hook_dict['source_step'], self.hook_dict['source_layer'] 
+            )
+            if "c1" in self.hook_dict['source_layer'] or "c2" in self.hook_dict['source_layer']:
+                GEN.COM('skip_current_command')
+                log = u"检测到拷贝型号{0} 非当前型号{1}的小版本，禁止从其他型号copy资料到当前型号！<br>文字层禁止拷贝，拷贝的step跟层别：{2} {3}".format(
+                    source_job, self.job_name, self.hook_dict['source_step'], self.hook_dict['source_layer'] 
+                )                
+                msg_box = msgBox()
+                msg_box.critical(self, '警告', log.format(source_job, self.job_name), QtGui.QMessageBox.Ok)
+                exit(0)     
+            
+            result = send_message_to_director(u"重要项目:"+log,
+                                              self.job_name,
+                                              log,
+                                              password_approve=True)
+            if not result:                
+                GEN.COM('skip_current_command')    
+                exit(0)
+            
+        res = self.check_soure_job_is_right(source_job)            
+        if res:
+            GEN.COM('skip_current_command')
+            log = u"检测到拷贝型号{0} 命名非法，资料内容跟型号不一致，请检查命名是否异常，禁止从其中拷贝资料！！"
+            msg_box = msgBox()
+            msg_box.critical(self, '警告', log.format(source_job, self.job_name), QtGui.QMessageBox.Ok)
+            exit(0)         
+        
+        warn_mess = []
+        layers_name = self.hook_dict['dest_layer'].split(';')
+        if len(layers_name) == 0:
+            exit(0)
+        #set中不允许从edit中拷贝资料过来覆盖
+        if "set" in self.step_name :
+            source_layer = self.hook_dict['source_layer']
+            dest_layer = self.hook_dict['dest_layer']
+            if source_layer == dest_layer:
+                log = u"检测到有从{0} 中拷贝层资料到{1}，此为非常规操作，请谨慎确认是否执行！"
+                msg_box = msgBox()
+                msg_box.critical(self, '警告', log.format(self.hook_dict['source_step'], self.step_name), QtGui.QMessageBox.Ok)
+                exit(0)                
+        # 检查层别是否在lock范围内
+        if self.step_name in self.pre_lock:
+            intersection_layers = [i for i in layers_name if i in self.pre_lock[self.step_name]]
+            if len(intersection_layers) > 0:
+                warn_mess.append(u'锁定的Step：%s中_锁定的层别：%s,不可编辑' % (self.step_name, intersection_layers))
+            else:
+                exit(0)
+        else:
+            exit(0)
+        if len(warn_mess) != 0:
+            GEN.COM('skip_current_command')
+            msg_box = msgBox()
+            msg_box.critical(self, '警告', u"%s" % "\n".join(warn_mess), QtGui.QMessageBox.Ok)
+            exit(0)
+            
+    def check_soure_job_is_right(self, source_job):
+        """"""        
+        log_path1 = "/id/incamp_db1/jobs/{0}/user/last_netlist_compare_log".format(source_job)
+        log_path2 = "/id/incamp_db1/jobs/{0}/user/save_log".format(source_job)
+        if os.path.exists(log_path1) or os.path.exists(log_path2):
+            if (os.path.exists(log_path1) and source_job.split("-")[0] in "".join(file(log_path1).readlines())) or \
+               (os.path.exists(log_path2) and source_job.split("-")[0] in "".join(file(log_path2).readlines())):
+                return 0
+            
+            return 2
+        
+        return 0
+
+    def get_parm_dict(self, hook_tmp_file):
+        """
+        解析hooks临时文件，生成dict
+        :param hook_tmp_file:
+        :return:
+        """
+        # === 读文件 ===
+        lineList = open(hook_tmp_file, 'r').readlines()
+        # os.unlink (self.tmpfile)
+        infoDict = GEN.parseInfo(lineList)
+        # print infoDict
+        hook_dict = {}
+        if len(infoDict['lnPARAM']) > 0 and len(infoDict['lnVAL']) > 0:
+            for i, inparm in enumerate(infoDict['lnPARAM']):
+                hook_dict[inparm] = infoDict['lnVAL'][i]
+        return hook_dict
+
+    def parse_expression(self, ip_word):
+        # (type=signal & context=board & side=inner | none & pol=positive)
+        expression_list = ip_word.replace('(', '').replace(')', '').split('&')
+        expression_dict = {}
+        for word in expression_list:
+            word_list = word.split("=")
+            expression_dict[word_list[0]] = word_list[1].split('|')
+        return expression_dict
+
+    def get_layers_name(self, expression_dict):
+        get_job_row = GEN.DO_INFO("-t matrix -e %s/matrix -d ROW" % self.job_name)
+        # set gROWrow             = ('1'            '2'           '3'            '4'            '5'            '6'            '7'           '8'        '9'        '10'       '11'       '12'       '13'       '14'          '15'           '16'           '17'           '18'           '19'          '20'           '21'       '22'       '23'       '24'       '25'       '26'        '27'        '28'       '29'       '30'      )
+        # set gROWtype            = ('layer'        'layer'       'layer'        'layer'        'layer'        'layer'        'layer'       'layer'    'layer'    'layer'    'layer'    'layer'    'layer'    'layer'       'layer'        'layer'        'layer'        'layer'        'layer'       'layer'        'layer'    'layer'    'layer'    'layer'    'layer'    'layer'     'layer'     'layer'    'layer'    'layer'   )
+        # set gROWname            = ('p1'           'c1'          'gold-c'       'etch-c'       'sgt-c'        'md1'          'm1'          'l1'       'l2'       'l3'       'l4'       'l5'       'l6'       'm2'          'md2'          'sgt-s'        'etch-s'       'gold-s'       'c2'          'p2'           'dld1-2'   'dld6-5'   'drl'      'inn'      'inn25'    'pnl_rout2' 'pnl_rout1' 's1-2'     'b2-5'     's6-5'    )
+        # set gROWcontext         = ('board'        'board'       'board'        'misc'         'board'        'board'        'board'       'board'    'board'    'board'    'board'    'board'    'board'    'board'       'board'        'board'        'misc'         'board'        'board'       'board'        'misc'     'misc'     'board'    'board'    'board'    'board'     'board'     'board'    'board'    'board'   )
+        # set gROWlayer_type      = ('solder_paste' 'silk_screen' 'solder_paste' 'solder_paste' 'solder_paste' 'solder_paste' 'solder_mask' 'signal'   'signal'   'signal'   'signal'   'signal'   'signal'   'solder_mask' 'solder_paste' 'solder_paste' 'solder_paste' 'solder_paste' 'silk_screen' 'solder_paste' 'drill'    'drill'    'drill'    'drill'    'drill'    'rout'      'rout'      'drill'    'drill'    'drill'   )
+        # set gROWlayer_base_type = ('solder_paste' 'silk_screen' 'solder_paste' 'solder_paste' 'solder_paste' 'solder_paste' 'solder_mask' 'signal'   'signal'   'signal'   'signal'   'signal'   'signal'   'solder_mask' 'solder_paste' 'solder_paste' 'solder_paste' 'solder_paste' 'silk_screen' 'solder_paste' 'drill'    'drill'    'drill'    'drill'    'drill'    'rout'      'rout'      'drill'    'drill'    'drill'   )
+        # set gROWpolarity        = ('positive'     'positive'    'positive'     'positive'     'positive'     'positive'     'positive'    'positive' 'positive' 'positive' 'positive' 'positive' 'positive' 'positive'    'positive'     'positive'     'positive'     'positive'     'positive'    'positive'     'positive' 'positive' 'positive' 'positive' 'positive' 'positive'  'positive'  'positive' 'positive' 'positive')
+        # set gROWside            = ('top'          'top'         'top'          'none'         'top'          'top'          'top'         'top'      'inner'    'inner'    'inner'    'inner'    'bottom'   'bottom'      'bottom'       'bottom'       'none'         'bottom'       'bottom'      'bottom'       'none'     'none'     'none'     'none'     'none'     'none'      'none'      'none'     'none'     'none'    )
+        # set gROWdrl_start       = (''             ''            ''             ''             ''             ''             ''            ''         ''         ''         ''         ''         ''         ''            ''             ''             ''             ''             ''            ''             ''         ''         'c1'       'p1'       'p1'       'p1'        'p1'        'l1'       'l2'       'l5'      )
+        # set gROWdrl_end         = (''             ''            ''             ''             ''             ''             ''            ''         ''         ''         ''         ''         ''         ''            ''             ''             ''             ''             ''            ''             ''         ''         'c2'       'p2'       'p2'       'p2'        'p2'        'l2'       'l5'       'l6'      )
+        # set gROWfoil_side       = ('none'         'none'        'none'         'none'         'none'         'none'         'none'        'top'      'top'      'bottom'   'top'      'bottom'   'bottom'   'none'        'none'         'none'         'none'         'none'         'none'        'none'         'none'     'none'     'none'     'none'     'none'     'none'      'none'      'none'     'none'     'none'    )
+        # set gROWsheet_side      = ('none'         'none'        'none'         'none'         'none'         'none'         'none'        'top'      'bottom'   'top'      'bottom'   'top'      'bottom'   'none'        'none'         'none'         'none'         'none'         'none'        'none'         'none'     'none'     'none'     'none'     'none'     'none'      'none'      'none'     'none'     'none'    )
+
+        convert_dict = {'type': 'gROWlayer_type', 'context': 'gROWcontext', 'side': 'gROWside', 'pol': 'gROWpolarity'}
+        affected_layers = []
+        check_dict = {}
+        for items in expression_dict:
+            # === 表达式有值
+            if expression_dict[items]:
+                check_dict[convert_dict[items]] = expression_dict[items]
+        # print check_dict
+        for index, g_layer_name in enumerate(get_job_row['gROWname']):
+            current = True
+            for item in check_dict:
+                if get_job_row[item][index] not in check_dict[item]:
+                    current = False
+            if current is True:
+                affected_layers.append(g_layer_name)
+        # print 'affected_layers = '
+        # print affected_layers
+        return affected_layers
+
+    def read_file(self):
+        """
+        用json从user文件夹中的job_lock.json中读取字典
+        :return:
+        :rtype:
+        """
+        json_dict = {}
+        stat_file = os.path.join(self.userDir, self.job_lock)
+        if os.path.exists(stat_file):
+            fd = open(stat_file, 'r')
+            json_dict = json.load(fd)
+            fd.close()
+        conver_dict = unicode_convert(json_dict)
+        return conver_dict
+
+
+# # # # --程序入口
+if __name__ == "__main__":
+    app = QtGui.QApplication(sys.argv)
+    myapp = DisPlay()
+    sys.exit(myapp.run())

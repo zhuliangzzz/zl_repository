@@ -1,0 +1,10 @@
+#
+#Feature symbol names
+#
+$0 r10
+
+#
+#Layer features
+#
+L -0.06 0 0.06 0 0 P 11 
+L 0 -0.06 0 0.06 0 P 11 

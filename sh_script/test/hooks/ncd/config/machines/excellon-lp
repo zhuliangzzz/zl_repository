@@ -1,0 +1,138 @@
+# --分段说明
+# 1.按500x711.2MM分成两段
+# 2.第二个钻带向左偏移300MM
+# 3.每个定位孔相隔150MM
+# 4.起点坐标偏移60MM
+reg {
+  xsize1    = 21.6535
+  xsize2    = 21.6535
+  ysize    = 29.5275
+  xover    = 2.0
+  angle    = 90
+  mirror   = no
+  xoff     = 2.3622
+  yoff     = 2.3622
+  version  = 1
+  xorigin  = 0
+  yorigin  = 0
+  dx1      = 0
+  dx2      = -11.811
+  dy1      = 0
+  dy2      = 0
+  xscale   = 1.0
+  yscale   = 1.0
+  xscale_o = 0.0
+  yscale_o = 0.0
+}
+
+format {
+  format        = excellon2
+  zeroes        = trailing
+  units         = mm
+  tool_units    = mm
+  nf1           = 3
+  nf2           = 3
+  decimal       = no
+  modal_coords  = no
+  incremental   = no
+  repetitions   = sr
+  single_sr     = no
+  sr_start_code = 25
+  sr_zero_set   = no
+}
+
+optimize {
+  optimize          = yes
+  break_sr          = no
+  xspeed            = 100
+  yspeed            = 100
+  iterations        = 5
+  reduction_percent = 1
+  diag_mode         = 45ort
+}
+
+rout_layer    = drl2rt
+hook_units    = inch
+no_touch_cpr  = yes
+tent_ar       = 0
+
+
+nibble {
+  custom = no
+  val {
+    min_size = 0
+    max_size = 200
+    num_holes = 50
+  }
+  val {
+    min_size = 200
+    max_size = 999
+    num_holes = 100
+  }
+}
+
+slot {
+  custom        = no
+  overlap       = 8.0
+  total_overlap = 10.0
+}
+
+z_axis {
+  z_head   = 10
+  zone {
+    x_min  = 0
+    y_min  = 0
+    x_max  = 0
+    y_max  = 0
+    z_head = 10
+  }
+  zone {
+    x_min  = 0
+    y_min  = 0
+    x_max  = 0
+    y_max  = 0
+    z_head = 10
+  }
+}
+
+time {
+  bit_change  = 1.0
+  tool_change = 1.0
+}
+
+tools_assign {
+   mode          = increasing_size
+   use_hole_tol  = no
+   choice_method = default_fit
+   tool_entry {
+      tool = 1
+      size = 125
+   }
+}
+
+start_end {
+   split {
+      start    = no
+      end      = no
+      min_dist = 20
+      x1       = 2.0
+      y1       = 0.2
+      x2       = 3.5
+      y2       = 0.6
+      x1_end   = 10.0
+      y1_end   = 0.2
+      x2_end   = 14.0
+      y2_end   = 0.6
+      min_hits = 10
+   }
+}
+
+out_hook {
+   exists        = yes
+   header        = yes
+   eof           = no
+   tool_change   = yes
+   tool_finish   = no
+   full_sr_start = no
+   full_sr_end   = no
+}

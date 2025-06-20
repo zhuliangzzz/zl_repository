@@ -1,0 +1,164 @@
+#!usr/bin/env python
+# -*- coding:utf-8 -*-
+"""
+   @file:modifyFile.py
+   @author:zl
+   @time: 2025/1/21 14:05
+   @software:PyCharm
+   @desc:
+   # 找含有某个关键词的脚本文件
+"""
+import codecs
+import datetime
+import glob
+import json
+import os.path
+import platform
+import re
+import sys
+import threading
+
+from Queue import Queue
+reload(sys)
+sys.setdefaultencoding('utf-8')
+if platform.system() == "Windows":
+    sys.path.append(r"Z:/incam/genesis/sys/scripts/Package_HDI")
+else:
+    sys.path.append(r"/incam/server/site_data/scripts/Package")
+from TOPCAM_IKM import IKM
+
+
+class ModifyFile():
+    def __init__(self):
+        self.num_threads = 10
+        self.file_list = []
+        # 创建队列和线程
+        self.queue = Queue()
+        self.ikm_fun = IKM()
+        self.logs, self.log = {}, []
+        self.search_path = ['/incam/server/site_data/scripts/' + dir for dir in ('csh_scripts', 'hdi_scr', 'lyh','ynh','zl','sh_rout','sh_script','sh1_script')]
+        # self.search_word = 'save'
+        # self.replace_word = '/workfile/hdi_film/'
+        self.scripts = []
+        self.run()
+
+    def run(self):
+        for search_path in self.search_path:
+            self.get_files(search_path)
+        threads = []
+        # 启动线程池
+        for _ in range(self.num_threads):
+            t = threading.Thread(target=self.worker, args=(self.queue,))
+            t.start()
+            threads.append(t)
+        # sql = 'select id,script_parameter from pdm_workprocess'
+        # data_info = self.ikm_fun.PG.SELECT_DIC(self.ikm_fun.dbc_p, sql)
+        # scripts = []
+        # if data_info:
+        #     # i = 0
+        #     for data in data_info:
+        #         # print(data["script_parameter"], type(data["script_parameter"]))
+        #         file_path = json.loads(data["script_parameter"]).get('source_script_incam')
+        #         # print(data['id'],file_path)
+        #         if file_path and file_path.strip():
+        #             if file_path not in scripts:
+        #                 scripts.append(file_path)
+                    # i += 1
+                    # if i > 1:
+                    #     break
+
+        for script in self.scripts:
+            self.queue.put(script)
+        self.log.append(u'开始搜索路径... %s' % datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+
+        # 等待所有任务完成
+        self.queue.join()
+
+        # 等待所有线程完成
+        for i in range(self.num_threads):
+            self.queue.put(None)
+        for t in threads:
+            t.join()
+
+        logfile = os.path.join('/windows/174.file/HDI_INCMAPRO_JOB_DB', 'search_save_log2.txt')
+        if not os.path.exists('/windows/174.file/HDI_INCMAPRO_JOB_DB'):
+            os.makedirs('/windows/174.file/HDI_INCMAPRO_JOB_DB')
+        # print(self.logs)
+        for key in self.logs.keys():
+            self.log.append(key)
+            self.log.extend(self.logs.get(key))
+            self.log.append('\n\n')
+        # 本次搜索完成
+        self.log.append(u"本次搜索完成 %s" % datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        # print("\n".join(self.log))
+        # with codecs.open(logfile, 'a', 'utf-8') as w:
+        #     content = "\n".join(self.log) + '\n'
+        #     w.write(content.encode('utf8').decode('utf8'))
+
+        with open(logfile, 'a') as w:
+            w.write("\n".join(self.log) + '\n')
+
+
+    def get_files(self, p_path):
+        for path in glob.glob(os.path.join(p_path, '*')):
+            if os.path.isdir(path):
+                # if '/hdi_scr' not in path or '/sh_script' not in path or '/sh1_script' not in path:
+                #     continue
+                self.get_files(path)
+            else:
+                if re.search('(.pl|.csh|.py)$', path) and not re.search('(\d{4,}|__init__|lib|Lib|Tk-804\.027|bak|back)', path):
+                    self.scripts.append(path)
+
+
+    # 线程池中的工作函数
+    def worker(self, q):
+        while True:
+            folder_path = q.get()
+            if folder_path is None:
+                break
+            try:
+                self.modify(folder_path)
+            finally:
+                q.task_done()
+
+    def modify(self, file):
+        if os.path.isfile(file):
+            dir_path = file.rsplit('/', 1)[0]
+            filename = os.path.basename(file)
+            if '.' in filename:
+                back_file = os.path.join(dir_path, filename.replace('.', '_modify_back.'))
+                tmp_filename = os.path.join(dir_path, filename.replace('.', '_modify_tmp.'))
+            else:
+                back_file = os.path.join(dir_path, filename + '_modify_back.')
+                tmp_filename = os.path.join(dir_path, filename + '_modify_tmp.')
+            # print(back_file,tmp_filename)
+            try:
+                print file
+                with open(file) as f1:
+                    for num, line in enumerate(f1):
+                        line = line.strip()
+                        # if self.search_word in line:
+                        if re.search('\.save\(\)|save_job', line):
+                            print(num+1, line)
+                            # new_line = line.replace(self.search_word, self.replace_word)
+                            # f2.write(new_line)
+                            if file not in self.logs.keys():
+                                self.logs[file] = []
+                            self.logs[file].append(u'%s: %s' % (num + 1, line.strip()))
+            except Exception as e:
+                print(e)
+        else:
+            self.log.append(u'文件%s不存在' % file)
+            # with open(file) as f1:
+            #     with open(back_file, 'w') as f2:
+            #         for num, line in enumerate(f1):
+            #             new_line = line.replace(self.search_word, self.replace_word)
+            #             f2.write(new_line)
+            #             self.logs[file].append('%s: %s' % (num + 1, line.strip()))
+            # os.rename(file, tmp_filename)
+            # os.rename(back_file, file)
+            # os.rename(tmp_filename, back_file)
+
+
+if __name__ == '__main__':
+    ModifyFile()

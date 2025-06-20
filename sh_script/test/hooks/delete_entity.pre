@@ -1,0 +1,76 @@
+#!/bin/csh
+
+source $1
+cp $1 /tmp/song20180927
+#set lnPARAM = ('job'                  'name'                 'type'                 )
+#set lnVAL   = ('h50204gn497a1-neo-tt' 'h50204gn497a1-neo-tt' 'job'                  )
+
+set LineType = $lnVAL[3]
+if ( $LineType == 'job' ) then
+	set CheckJob = $lnVAL[2]
+	#增加自动修复joblist 18.4.8 by Neo   # pre 检查 目录
+	set DbutilPath = "$INCAM_PRODUCT/bin/dbutil"
+	set JobPath = `$DbutilPath path jobs $CheckJob`
+	set FileExistStat = 'yes'
+	if ( "$JobPath" == "" ) then
+		set FileExistStat = 'no'
+	else
+		if ( ! -e "$JobPath" ) then
+			set FileExistStat = 'no'
+		endif
+	endif
+
+	if ( $FileExistStat == 'no' ) then
+		set DateTime = `date "+%Y-%m-%d %H:%M:%S"`
+		COM get_user_name
+		set IncamUser = $COMANS
+		set HostName = `hostname`
+		set FixLogsPath = "$INCAM_SITE_DATA_DIR/scripts/Logs/Fix"
+		set FixLogsFile = "$FixLogsPath/copy_entity.log"
+
+		echo "pre	$CheckJob	$DateTime	$IncamUser	$HostName" >> $FixLogsFile
+		#
+		set tFile = "/tmp/tFile$$.log"
+		$DbutilPath check y >& $tFile
+		cat $tFile | grep -v 'Checking' | grep -v 'lock' | grep -v 'Lock' >> $FixLogsFile
+		\rm -rf $tFile
+		#
+		echo "" >> $FixLogsFile
+	endif
+
+	COM get_user_priv
+	set userpriv = $COMANS[1]	
+	if ($userpriv < 95) then
+		if ($lnVAL[2] =~ "__*__" ) then
+		
+		else
+			COM skip_current_command
+			NeoBoxs "无法执行操作::只有管理员才有权限删除料号！::ok::w"
+			#PAUSE 只有管理员权限能删除料号!
+			exit
+		endif
+	endif	
+
+endif
+
+if ($LineType == 'step') then
+	set stepname = $lnVAL[2]
+	if ("$stepname" == "net")	then
+		COM get_user_priv
+		set userpriv = $COMANS[1]	
+		#if ($userpriv < 95) then
+			if ($lnVAL[2] =~ "__*__" ) then
+			
+			else
+				COM skip_current_command
+				NeoBoxs "无法执行操作::只有管理员才有权限删除net！::ok::w"
+				#PAUSE 只有管理员权限能删除料号!
+				exit
+			endif
+		#endif	
+	endif
+endif
+
+
+
+

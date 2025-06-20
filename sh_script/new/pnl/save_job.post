@@ -1,0 +1,58 @@
+#!/usr/bin/perl
+
+use lib "$ENV{INCAM_PRODUCT}" . '/app_data/perl';
+use incam;
+use File::Basename;
+$host = shift;
+my $f = new incam($host);
+
+$JOB = $ENV{JOB};
+$STEP = $ENV{STEP};
+
+if ("$JOB" eq "genesislib"){
+	exit (1);
+}
+
+$f->COM(get_user_name);
+$user = $f->{COMANS};
+
+my $filepath;
+my $file_user;
+my $job_dir;
+#if ($ENV{INCAM_PRODUCT} eq '/frontline/incampro/release'){
+#	$filepath = "/incampro/incamp_db1";
+#}else{
+#	$filepath = "/incam/incam_db1";
+#}
+if ($ENV{INCAM_PRODUCT}){
+	#$filepath = "/incampro/incamp_db1";
+	($file_user,$job_dir) = fileparse($ENV{JOB_USER_DIR});
+}
+my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time());
+$year += 1900;
+$mon = sprintf("%02d", $mon + 1);
+$mday = sprintf("%02d", $mday);
+$hour = sprintf("%02d", $hour);
+$min = sprintf("%02d", $min);
+$sec = sprintf("%02d", $sec);
+$todax = "${year}/${mon}/${mday} ${hour}:${min}:${sec}";
+
+my $savefile = "$job_dir/user/savechange";
+open(DEST,">>$savefile");
+	print DEST "savechanged by $user data:$todax \n";
+close DEST;
+
+#### add by hyp, Sep 22, 2017 ####
+if ( $user ne 'tester' or $user ne 'hyp' )
+{
+	my $lastSaveFile = "$job_dir/user/last_savetime";
+	open(SAVEFILE,">$lastSaveFile");
+	print SAVEFILE "$year-$mon-$mday $hour:$min:$sec $user";
+	close SAVEFILE;
+}
+
+$f->COM("check_inout,job=$JOB,mode=in,ent_type=job");
+$f->COM("check_inout,job=$JOB,mode=out,ent_type=job");
+
+
+############################ END OF PROGRAM #####################

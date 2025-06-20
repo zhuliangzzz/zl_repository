@@ -1,0 +1,70 @@
+# File Name:    create_slot
+# File Purpose: This file is called during the ADM process when a slot needs to
+#               be peck drilled. It is a c-shell script which is used to calculate
+#               a sequence of X/Y co-ordinates which will drill out the slot. 
+# Written by:   Ian Ticehurst (Autom8 Ltd.)
+# Version 1A.:  Date: 15.09.00 - Initial design and development.
+# Version 1B.:  Date: 05.12.00 - Removal of "gui" alias.
+############################# Start of notes ###############################
+# This file is located in the hooks/ncd directory and forms part of the Auto Drill
+# Manager file set. It is a c-shell script which can be used to provide a customised
+# routine for peck drilling a slot. This is typically used when the standard routine
+# used in a drilling machine canned cycle does not create an acceptable slot (typically
+# the canned cycle starts at one end of the slot and works along it).
+# This script is started with six parameters passed to it. These parameters can be
+# used to calculate the co-ordinates required to drill the slot. These parameters
+# are:-
+#
+# 1. $1 - output filename
+# 2. $2 - machine name
+# 3. $3 - slot diameter (mils/microns)
+# 4. $4 - length (in inches/mm)
+# 5. $5 - thickness (mils/microns)
+# 6. $6 - layer name 
+#
+# The output file is read by the ADM program and expects to see a list of X/Y
+# co-ordinates. The system assumes that the slot starts at (0,0) and goes to the
+# right (horizontal).
+# Note: This file is activated by the custom yes/no switch in the machine file and
+# NOT by the sw/machine switch in the drill table.
+############################# End of notes ################################ 
+
+# Define correct temp. dir. depending on env. vars.
+if ($?GENESIS_TMP) then
+	set TMP = $GENESIS_TMP
+else if ($?GENESIS_DIR) then
+	set TMP = $GENESIS_DIR/tmp
+else
+	set TMP = /genesis/tmp
+endif
+
+# Set up gui data and response files.
+set GUI_DATA = $TMP/gui_data.$$
+set GUI_RESP = $TMP/gui_resp.$$
+
+# Set sensible names to parameters.
+set OUT_FILE = $1
+set MACHINE = $2
+set SLOT_DIAM = $3
+set SLOT_LEN = $4
+set THICK = $5
+set DRL_LAY = $6
+
+# Put window on screen warning user that this file is not yet set up.
+echo "WIN 200 200" >> $GUI_DATA
+echo "FONT tbr18" >> $GUI_DATA
+echo "BG 992222" >> $GUI_DATA
+echo "FG 999999" >> $GUI_DATA
+echo "LABEL Create Slot File Pop-up." >> $GUI_DATA
+echo "LABEL WARNING - The create_slot file has not yet been programmed." >> $GUI_DATA
+echo "LABEL This file allows you to customise the slot drilling routine.">> $GUI_DATA
+echo "LABEL The current setting outputs only a single hole at the start of the slot." >> $GUI_DATA
+echo "END" >> $GUI_DATA
+	
+gui $GUI_DATA
+\rm $GUI_DATA
+
+# Output single drill point at slot start.
+echo "0 0" > $OUT_FILE
+
+exit

@@ -1,0 +1,60 @@
+#!/bin/csh
+#########################################
+set userv = `uname -s`
+echo $userv
+if ("$userv" == "SunOS") then
+alias awk nawk
+else if ("$userv" == "Linux") then
+alias awk gawk
+else
+alias awk awk95
+endif
+####define  genesis path
+set liu = 1
+set cai = 2
+set lin = `echo "scale=0;$liu + $cai"|bc`
+echo "$liu $cai $lin"
+COM read_form,job=$JOB,form=sl_opgerber,elem=path
+set pathxx = "$COMANS"
+##################################################
+set outstep = 0
+DO_INFO -t step -e $job/set -d exists
+if ($gEXISTS == yes) then
+DO_INFO -t layer -e $JOB/set/set-map -D FEAT_HIST
+if ($gFEAT_HISTtotal >= 10) then
+set outstep = set
+endif
+else
+DO_INFO -t layer -e $JOB/edit/set-map -D FEAT_HIST
+if ($gFEAT_HISTtotal >= 10) then
+set outstep = edit
+endif
+endif
+if ($outstep == 0) then
+set gui_in = $TMP/gui_in.$$
+set gui_out = $TMP/gui_out.$$
+echo "WIN 200 200" > $gui_in
+echo "FONT tbr18" >> $gui_in
+echo "LABEL "\*ERROR\*"" >> $gui_in
+echo "LABEL "all the set-map layers haven\'t datas! please check out tenm"" >> $gui_in
+$GENESIS_EDIR/all/gui $gui_in > $gui_out
+source $gui_out
+exit (0)
+endif
+set prefix = "${JOB}."
+COM output_layer_reset
+COM output_layer_set,layer=set-map,angle=0,mirror=no,x_scale=1,y_scale=1,\
+comp=0,polarity=positive,setupfile=,setupfiletmp=,line_units=inch,\
+gscl_file=
+#########################################################################
+COM output,job=$JOB,step=$outstep,format=Gerber274x,dir_path=$pathxx,\
+prefix=$prefix,suffix=,break_sr=yes,break_symbols=yes,break_arc=yes,\
+scale_mode=all,surface_mode=fill,min_brush=1,units=inch,coordinates=absolute,\
+zeroes=leading,nf1=2,nf2=5,x_anchor=0,y_anchor=0,wheel=,x_offset=0,\
+y_offset=0,line_units=inch,override_online=yes,film_size_cross_scan=0,\
+film_size_along_scan=0,ds_model=RG6500
+
+#################################################
+
+
+##############################################

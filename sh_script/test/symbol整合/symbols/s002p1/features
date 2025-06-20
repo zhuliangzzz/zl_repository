@@ -1,0 +1,11 @@
+#
+#Feature symbol names
+#
+$0 r18
+$1 oval71x13
+
+#
+#Layer features
+#
+P 0 0 1 P 0 0
+P 0.0114821 -0.0000044 0 P 0 0

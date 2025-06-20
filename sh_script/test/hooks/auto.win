@@ -1,0 +1,11 @@
+33.file 	-fstype=cifs,rw,noperm,username=Gc_cam,password=QWE123qwe ://192.168.2.57/临时文件夹/系列资料临时存放区/
+#33.vgt	-fstype=cifs,rw,noperm,username=Gc_cam,password=QWE123qwe ://192.168.2.33/VGT\$/设计课/
+#33.tgz	-fstype=cifs,rw,noperm,username=Gc_cam,password=QWE123qwe ://192.168.2.33/VGT\$/设计课/外部资料/工程部外部取读资料/胜宏全套tgz/
+33.tgz  -fstype=nfs,r 192.168.2.33:/GC/设计课/外部资料/工程部外部取读资料/胜宏全套TGZ
+33.vgt  -fstype=nfs,r 192.168.2.33:/GC/设计课/
+incam 	-fstype=cifs,rw,noperm,username=Gc_cam,password=QWE123qwe ://192.168.2.33/incam-share/
+inplan 	-fstype=cifs,rw,noperm,username=Gc_cam,password=QWE123qwe ://192.168.2.18/InPlan_Share/
+174.tgz	-fstype=cifs,rw,noperm,username=engineer_bl1,password=!QAZ2wsx ://192.168.2.174/GCfiles/HDI全套tgz/
+174.file -fstype=cifs,rw,noperm,username=engineer_bl1,password=!QAZ2wsx ://192.168.2.174/GCfiles/
+172.file -fstype=cifs,rw,noperm,username=engineer_bl1,password=!QAZ2wsx ://192.168.2.172/GCfiles/
+

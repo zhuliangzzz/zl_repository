@@ -1,0 +1,7 @@
+#! /bin/csh
+
+setenv FRONTLINE_NO_LOGIN_SCREEN "/incam/server/site_data/scripts/db_management"
+
+cd /data/incam/release/bin
+./incam.csh -x -s/incam/server/site_data/scripts/db_management/clean_db.csh 
+

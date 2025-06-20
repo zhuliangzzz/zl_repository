@@ -1,0 +1,8 @@
+balloon_message_type=1 none
+balloon_show_time=5 none
+font_size=2 none
+net_compare_ignore_inner_net_points=yes none
+pixamp_size=2 none
+show_guideline=yes none
+use_big_font=yes none
+use_big_pixmap=yes none

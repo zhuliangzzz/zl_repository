@@ -1,0 +1,27 @@
+#! /bin/csh
+
+source $1
+
+#cat $1
+#COM import_open_job,db=linux1,path=/id/workfile/Neo/UserTgz/h52508gbe91a1-neo.tgz,name=h52508gbe91a1-neo,analyze_surfaces=no,keep_nls=no
+#set lnPARAM = ('db'     'path'                                           'name'               'analyze_surfaces'  'upgrade_format'  'create_customer'  'keep_nls'  'checkin' )
+#set lnVAL   = ('linux1' '/id/workfile/Neo/UserTgz/h52508gbe91a1-neo.tgz' 'h52508gbe91a1-neo'  'no'                'yes'             'no'               'no'        'no'      )
+
+set NeoSrcPath = "$INCAM_SITE_DATA_DIR/scripts/User/Neo"
+set NeoBoxsPath = "$NeoSrcPath/Tools/MessBoxs.Neo"
+alias NeoBoxs '$NeoBoxsPath \!:*'
+
+set CheckJob = $lnVAL[3]
+#检查料号名是否符合规则 18.4.9 by Neo
+set JobJud = `echo $CheckJob | grep '[^a-z0-9+_\.\-]'`
+# if ( $#JobJud != 0 ) then
+# 	COM skip_current_command
+# 	NeoBoxs "Job名称有误::JOB:$CheckJob    JOB名称只能由 小写字母、数字、+-_. 组成， 请重新输入保存的Job名！！！::ok::w"
+# 	exit
+# endif
+
+if ( $#JobJud == 13 ) then
+	COM skip_current_command
+	NeoBoxs "正式料号请使用导入tgz脚本进行导入!"
+	exit
+endif

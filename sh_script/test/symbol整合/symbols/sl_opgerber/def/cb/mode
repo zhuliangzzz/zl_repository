@@ -1,0 +1,166 @@
+#!/bin/csh
+#####################################output gui
+set liu = 1
+set cai = 2
+set lin = `echo "scale=0;$liu + $cai"|bc`
+echo "$liu $cai $lin"
+set userv = `uname -s`
+echo $userv
+if ("$userv" == "SunOS") then
+alias awk nawk
+else if ("$userv" == "Linux") then
+alias awk gawk
+else
+alias awk awk95
+endif
+###############################
+set gui_path = ()
+if ("$userv" == "SunOS") then
+  set gui_path = /genesis/e90/all/gui
+  set scp_path = /genesis/sys/scripts
+  set gui_inpath = /tmp/gui_in.$$
+  set gui_outpath = /tmp/gui_out.$$
+else if ("$userv" == "Linux") then
+ set gui_path = /genesis/e90/all/gui
+ set scp_path = /genesis/sys/scripts
+ set gui_inpath = /tmp/gui_in.$$
+ set gui_outpath = /tmp/gui_out.$$
+else
+set disk = (c d e f g h)
+  foreach disk($disk)
+   if (-e ${disk}:/genesis) then
+       set pan = $disk
+       set scp_path = ${disk}:/genesis/sys/scripts
+       set gui_inpath = ${disk}:/tmp/gui_in.$$
+       set gui_outpath = ${disk}:/tmp/gui_out.$$
+       if (-e ${disk}:/genesis/e90/all/gui.exe) then
+        set gui_path = "${disk}:/genesis/e90/all/gui"
+       else if(-e ${disk}:/genesis/e91/all/gui.exe) then
+        set gui_path = "${disk}:/genesis/e90/all/gui"
+       else if(-e ${disk}:/genesis/e92/all/gui.exe) then
+        set gui_path = "${disk}:/genesis/e92/all/gui"
+       endif
+    endif
+  end 
+endif
+##########################################
+set ALLlayer = ()
+set ALLlayer1 = ()
+set INNERlayer = ()
+set INNERlayer1 = ()
+set OUTlayer = ()
+set OUTlayer1 = ()
+set text = ()
+set matrix_counter = 1
+DO_INFO -t matrix -e $JOB/matrix
+while ( $matrix_counter <= $#gROWcontext )
+   switch ($gROWcontext[$matrix_counter])
+     case empty:
+     case misc:
+                set layername = `echo "$gROWname[$matrix_counter]"|cut -c1-2` 
+                 set layername1 = `echo "$gROWname[$matrix_counter]"`  
+                if ($layername1 == "map") then
+                 set ALLlayer = ($ALLlayer $gROWname[$matrix_counter])
+                 set ALLlayer1 = ($ALLlayer1 $gROWname[$matrix_counter])
+                 set INNERlayer = ($INNERlayer $gROWname[$matrix_counter])  
+                 set INNERlayer1 = ($INNERlayer1 $gROWname[$matrix_counter])  
+                 endif
+                 @ matrix_counter++
+                 continue
+     default:
+                    set layername = `echo "$gROWname[$matrix_counter]"|cut -c1-2`   
+                     if ($layername == "gt" || $layername == "gb") then
+                    set ALLlayer = ($ALLlayer $gROWname[$matrix_counter])
+                    set ALLlayer1 = ($ALLlayer1 $gROWname[$matrix_counter])
+                    set OUTlayer = ($OUTlayer $gROWname[$matrix_counter])
+                    set OUTlayer1 = ($OUTlayer1 $gROWname[$matrix_counter])
+                      if ($gROWname[$matrix_counter] == "gto" ) then
+                       set text = ($text gto gtl)
+                      else if($gROWname[$matrix_counter] == "gbo") then
+                       set text = ($text gbo gbl)
+                      endif
+                    else if ($layername == "ma") then
+                    set ALLlayer = ($ALLlayer $gROWname[$matrix_counter])
+                    set ALLlayer1 = ($ALLlayer1 $gROWname[$matrix_counter])
+                    set INNERlayer = ($INNERlayer $gROWname[$matrix_counter])
+                    set INNERlayer1 = ($INNERlayer1 $gROWname[$matrix_counter])
+                    else if ($layername == "gp") then
+                    set ALLlayer = ($ALLlayer $gROWname[$matrix_counter])
+                    set ALLlayer1 = ($ALLlayer1 $gROWname[$matrix_counter])
+                    set INNERlayer = ($INNERlayer $gROWname[$matrix_counter])
+                    set INNERlayer1 = ($INNERlayer1 $gROWname[$matrix_counter])
+                    endif
+   endsw
+ @ matrix_counter++
+end
+
+
+###########################################
+set layernum = `echo "$job"|cut -c2`
+if ($layernum == a) then
+set layernum = 10
+else if ($layernum == c) then
+set layernum = 12
+else if ($layernum == e) then
+set layernum = 14
+else if ($layernum == g) then
+set layernum = 16
+endif
+##############################################33
+#source $scp_path/include_me
+COM read_form,job=$JOB,form=sl_opgerber,elem=mode
+set mode = "$COMANS"
+COM read_form,job=$JOB,form=sl_opgerber,elem=job
+set jobname = "$COMANS"
+COM read_form,job=$JOB,form=sl_opgerber,elem=step,opt_name=yes
+set step = "$COMANS"
+echo "$step"
+if ($mode == 0) then
+COM edit_form,job=$JOB,form=sl_opgerber,elem=display,value=$ALLlayer,opt_name=yes,callback=yes
+else if ($mode == 1) then
+if ($layernum >= 3) then
+COM edit_form,job=$JOB,form=sl_opgerber,elem=display,value=$INNERlayer,opt_name=yes,callback=yes
+else
+COM edit_form,job=$JOB,form=sl_opgerber,elem=mode,value=All,opt_name=yes,callback=yes
+endif
+else if ($mode == 2) then
+COM edit_form,job=$JOB,form=sl_opgerber,elem=display,value=$OUTlayer,opt_name=yes,callback=yes
+else if ($mode == 4) then
+COM edit_form,job=$JOB,form=sl_opgerber,elem=display,value=$text,opt_name=yes,callback=yes
+else
+ set gui_in  = $gui_inpath
+   set gui_out = $gui_outpath
+   echo "WIN 200 200" > $gui_in
+   echo "FG 000000" >> $gui_in
+   echo "BG 168899" >> $gui_in
+   echo "FONT tbr24" >> $gui_in
+   echo "LABEL *please select output layer* " >> $gui_in
+   echo "FORM " >> $gui_in 
+   echo "LABEL *JOB = $JOB* " >> $gui_in
+   echo "LABEL *STEP = $step* " >> $gui_in
+   echo "ENDFORM" >> $gui_in 
+   echo "FONT tbr14" >> $gui_in
+   echo "FORM" >> $gui_in 
+   echo "LIST  layer  10  m  " >> $gui_in
+   foreach jb ($gROWname)
+   echo $jb >> $gui_in
+   end
+   echo "END" >> $gui_in 
+   echo "ENDFORM" >> $gui_in
+   echo "FORM " >> $gui_in
+   echo "RADIO exit '"Exit"' H 1 88000 " >> $gui_in
+   echo "No" >> $gui_in 
+   echo "Yes   " >> $gui_in 
+   echo "END" >> $gui_in 
+   echo "ENDFORM " >> $gui_in 
+   $gui_path $gui_in > $gui_out
+   source $gui_out
+   if ( $exit == 1 )  then
+   else
+   goto end:
+   endif
+
+COM edit_form,job=$JOB,form=sl_opgerber,elem=display,value=$layer,opt_name=yes,callback=yes
+endif
+end:
+echo "dd"

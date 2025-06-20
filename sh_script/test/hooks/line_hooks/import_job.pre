@@ -1,0 +1,88 @@
+#!/usr/bin/env python
+# -*-coding: Utf-8 -*-
+# @File : import_job
+# @author: tiger
+# @Time：2024/5/6 
+# @version: v1.0
+# @note: 
+
+
+import sys, re
+import platform
+if platform.system() == "Windows":
+    sys.path.append(r"Z:/incam/genesis/sys/scripts/Package_HDI")
+    sys.path.append(r"D:/pyproject/Package")
+else:
+    sys.path.append(r"/incam/server/site_data/scripts/Package")
+import genCOM_26
+gen = genCOM_26.GEN_COM()
+from create_ui_model import showMessageInfo, showQuestionMessageInfo,app
+import Oracle_DB
+
+class InPlan:
+
+    def __init__(self, job):
+        # --Oracle相关参数定义
+        self.JOB_SQL = job.replace(job[13:], '').upper()
+        self.DB_O = Oracle_DB.ORACLE_INIT()
+        self.dbc_h = self.DB_O.DB_CONNECT(host='172.20.218.193', servername='inmind.fls', port='1521',
+                                          username='GETDATA', passwd='InplanAdmin')
+        if not self.dbc_h:
+            pass
+
+    def __del__(self):
+        # --关闭数据库连接
+        if self.dbc_h:
+            self.DB_O.DB_CLOSE(self.dbc_h)
+
+def get_parm_dict(hook_tmp_file):
+    with open(hook_tmp_file, 'r') as f:
+        lineList = f.readlines()
+    infoDict = gen.parseInfo(lineList)
+    hook_dict = {}
+    if len(infoDict['lnPARAM']) > 0 and len(infoDict['lnVAL']) > 0:
+        for i, inparm in enumerate(infoDict['lnPARAM']):
+            hook_dict[inparm] = infoDict['lnVAL'][i]
+    return hook_dict
+
+def get_version_job(info_job):
+    sql = """
+        SELECT
+            a.item_name JOBNAME
+        FROM
+            vgt_hdi.items a
+            INNER JOIN vgt_hdi.job b ON a.item_id = b.item_id AND a.last_checked_in_rev = b.revision_id
+        WHERE a.item_name LIKE '{0}_'
+        """.format(info_job)
+    DB_O = Oracle_DB.ORACLE_INIT()
+    dbc_h = DB_O.DB_CONNECT(host='172.20.218.193', servername='inmind.fls', port='1521',
+                                      username='GETDATA', passwd='InplanAdmin')
+    ver_data = DB_O.SELECT_DIC(dbc_h, sql)[-1]['JOBNAME']
+    DB_O.DB_CLOSE(dbc_h)
+    return ver_data
+
+hook_dict = get_parm_dict(sys.argv[1])
+in_jobname = hook_dict['name']
+path_tgz = hook_dict['path']
+
+# # 更名料号的规则限制
+patten = '[^a-z0-9+_\.\-]'
+res = re.search(patten, in_jobname)
+if res:
+    showMessageInfo(u'JOB名称只能由小写字母、数字、+-_. 组成， 请重新输入')
+    exit(0)
+
+
+# 查看源TGZ的版本是否最新版本
+souch_job = str(path_tgz.split('/')[-1]).replace('.tgz', '')
+# if len(souch_job) == 13 and re.search('[a-z][0-9]',souch_job[-2:]) and souch_job[4:6] == '183':
+#     # 获取最新的版本
+#     new_ver =  get_version_job(souch_job[:-1].upper()).lower()
+#     if new_ver != souch_job:
+#         res = showQuestionMessageInfo(u'最新版本为{0},导入版本为{1}，请确认是否继续导入TGZ?'.format(new_ver[-2:], souch_job[-2:]))
+#         if res == 0:
+#             exit(0)
+
+if len(souch_job) == 13:
+    showMessageInfo(u'正式料号请使用导入tgz脚本进行导入!')
+    gen.COM('skip_current_command') 

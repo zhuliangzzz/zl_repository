@@ -1,0 +1,157 @@
+#!/usr/bin/env python
+# encoding: utf-8
+# -*- coding: utf-8 -*-
+# ---------------------------------------------------------#
+#               VTG.SH SOFTWARE GROUP                     #
+# ---------------------------------------------------------#
+# @Author       :    唐成
+# @Mail         :
+# @Date         :    2021/04/15
+# @Revision     :    1.0
+# @File         :
+# @Software     :    PyCharm
+# @Usefor       :    matrix_delete_row 前检查是否允许删除
+# @Revision     :    1.0
+# @Modify V1.1 2022.09.05 Song 部分重构，增加了直接退出，skip_current_command 不需要文件中转
+# ---------------------------------------------------------#
+
+
+import sys, platform, os, re, shutil, random
+
+if (platform.system() == "Windows"):
+    sys.path.append(r"Z:/incam/genesis/sys/scripts/Package")
+elif (platform.system() == 'Linux'):
+    sys.path.append(r"/incam/server/site_data/scripts/Package")
+else:
+    print("不是在 linux 系统或windows系统下运行脚本，脚本无法运行")
+    sys.exit()
+
+import GetData
+import genCOM_26 as genCOM
+import json
+import MySQL_DB
+conn = MySQL_DB.MySQL()
+dbc_m = conn.MYSQL_CONNECT(hostName='192.168.2.19', database='hdi_engineering', prod=3306,
+                           username='root', passwd='k06931!')
+dbc_p = conn.MYSQL_CONNECT(hostName='192.168.2.19', database='project_status', prod=3306,
+                           username='root', passwd='k06931!')
+
+if os.environ.get("JOB", None):
+    sys.path.insert(0, "/incam/server/site_data/scripts/lyh")
+    from auto_sh_hdi_check_rules import send_message_to_director
+
+
+class panelization(object):
+    def __init__(self, perent=None):        
+
+        self.job_name = os.environ.get("JOB")
+        self.step_name = os.environ.get("STEP")
+        self.GEN = genCOM.GEN_COM()
+
+        my_file = sys.argv[1]
+        hook_tmp_file = my_file
+        self.hook_dict = self.get_parm_dict(hook_tmp_file)
+        # {'name': 'Panel-Design'}
+        # print self.hook_dict
+        self.getDATA = GetData.Data()
+        
+        # --从数据库中获取lock记录 获取不到在从文件内获取 20230904 by lyh
+        self.pre_lock = None
+        if platform.system() == "Windows":
+            self.userDir = "%s/fw/jobs/%s/user" % (os.environ.get('GENESIS_DIR', 'D:/genesis'), self.jobname)
+        else:
+            self.userDir = os.environ.get('JOB_USER_DIR', None)
+            if not self.userDir:
+                self.userDir = "%s/user" % self.job.dbpath
+        if len(self.job_name) == 13:            
+            self.pre_lock = self.getJOB_LockInfo(dataType='locked_info')
+            
+        if not self.pre_lock:              
+            self.pre_lock = self.read_file()
+        
+    def getJOB_LockInfo(self, dataType='locked_info'):
+        """
+        从数据库中获取料号的锁记录
+        :param dataType: 获取的数据类型（status:locked_info log:locked_log）
+        :return:dict
+        """
+        #GEN.COM('get_user_name')
+        #IncamUser = GEN.COMANS
+        ## 测试阶段
+        #if IncamUser not in ["83288"]:
+            #return {}
+            
+        lockData = self.getDATA.getLock_Info(self.job_name.split("-")[0])
+
+        try:
+            return json.loads(lockData[dataType], encoding='utf8')
+        except:
+            # print u'传入的数据参数异常'
+            return {}        
+        
+    def get_rename_job_previs(self, user, authority_name):
+        sql = "select * from hdi_engineering.incam_user_authority "
+        self.check_data_info = conn.SELECT_DIC(dbc_m, sql)
+        for dic_info in self.check_data_info:
+            if str(dic_info["user_id"]) == user:
+                if dic_info["Authority_Name"] == authority_name and \
+                   dic_info["Authority_Status"] ==u"是":
+                    return True
+                
+        return False
+    
+    def main(self):
+        if self.step_name and self.step_name.endswith("-oqc"):
+            exit(0)
+        
+        self.GEN.COM('get_user_name')
+        username = self.GEN.COMANS        
+        if self.get_rename_job_previs(username, u"审核人权限"):                    
+            exit(0)
+                
+        if self.hook_dict["name"] == "Panel-Design":
+            for lock_step in self.pre_lock:
+                if lock_step == "lock_panelization_status":
+                    for lock_layer in self.pre_lock[lock_step]:
+                        if lock_layer in ["yes"]:
+                            result = send_message_to_director(u"重要项目:拼版被锁定，你无权查看修改，若需查看，请反馈主管验证码放行！！！",
+                                                              self.job_name, u"重要项目:拼版被锁定，你无权查看修改，若需查看，请反馈主管验证码放行！！",
+                                                              password_approve=True)
+                            if result:
+                                exit(0)
+                                    
+            os.system("python /frontline/incam/server/site_data/scripts/hdi_scr/Tools/job_lock/pre_move_check.py {0} {1}".format("lock_panelization_status", "yes"))
+
+    def get_parm_dict(self, hook_tmp_file):
+        """
+        解析hooks临时文件，生成dict
+        :param hook_tmp_file:
+        :return:
+        """
+        lineList = open(hook_tmp_file, 'r').readlines()
+        # os.unlink (self.tmpfile)
+        infoDict = self.GEN.parseInfo(lineList)
+        # print infoDict
+        hook_dict = {}
+        if len(infoDict['lnPARAM']) > 0 and len(infoDict['lnVAL']) > 0:
+            for i, inparm in enumerate(infoDict['lnPARAM']):
+                hook_dict[inparm] = infoDict['lnVAL'][i]
+        return hook_dict
+    
+    def read_file(self):
+        """
+        用json从user文件夹中的job_lock.json中读取字典
+        :return:
+        :rtype:
+        """
+        json_dict = {}
+        stat_file = os.path.join(self.userDir, self.job_lock)
+        if os.path.exists(stat_file):
+            fd = open(stat_file, 'r')
+            json_dict = json.load(fd)
+            fd.close()
+        return json_dict    
+
+if __name__ == "__main__":
+    BDL = panelization()
+    BDL.main()

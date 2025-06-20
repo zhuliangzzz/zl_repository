@@ -1,0 +1,213 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<Users version="1.0" creatorVersion="1.0.16" creator="AdminTool">
+    <user name="incam">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="ZWPUSEDJ" autoLogin="no" obsolete="no" group="" encrypted="yes" profileNfsPath="/frontline/incam/server/users/incam/" priv="100" fullName="InCAM Initial User"/>
+    </user>
+    <user name="inplan">
+        <properties useOSUserName="no" osUserName="" profileWinPath="/frontline/incam/server/users/inplan" password="PKOBINWY" autoLogin="no" obsolete="no" group="ncc" encrypted="yes" profileNfsPath="/frontline/incam/server/users/inplan" priv="10" fullName="inplan"/>
+    </user>
+     <user name="inplan_admin">
+        <properties useOSUserName="no" osUserName="" profileWinPath="/frontline/incam/server/users/inplan" password="PKOBINWY" autoLogin="no" obsolete="no" group="ncc" encrypted="yes" profileNfsPath="/frontline/incam/server/users/inplan" priv="100" fullName="inplan"/>
+    </user>
+    <user name="checkout">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="VHTZEPRB" autoLogin="no" obsolete="no" group="ncc" encrypted="yes" profileNfsPath="/frontline/incam/server/users/checkout" priv="100" fullName=""/>
+    </user>
+    <user name="44566">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="UKLKUFWN" autoLogin="no" obsolete="no" group="" encrypted="yes" lastPasswordChanged="1635987847" profileNfsPath="/incam/server/users/44566" priv="10" fullName="周涌"/>
+    </user>
+    <user name="51059">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="ZAIUMFAB" autoLogin="no" obsolete="no" group="" encrypted="yes" profileNfsPath="/incam/server/users/51059" priv="50" fullName="伍青"/>
+    </user>
+    <user name="54526">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="DICERYBC" autoLogin="no" obsolete="no" group="" encrypted="yes" profileNfsPath="/incam/server/users/54526" priv="50" fullName="莫强"/>
+    </user>
+    <user name="50920">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="AFZOLHTN" autoLogin="no" obsolete="no" group="" encrypted="yes" profileNfsPath="/incam/server/users/50920" priv="50" fullName="赖小雯"/>
+    </user>
+    <user name="53934">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="VHTZEPRB" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/53934" priv="100" fullName="唐成"/>
+    </user>
+    <user name="43982">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="VHTZEPRB" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/43982" priv="50" fullName="徐志刚"/>
+    </user>
+    <user name="64989">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="HOJWGQWT" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/64989" priv="10" fullName="林培金"/>
+    </user>
+    <user name="68149">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="VHTZEPRB" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/68149" priv="50" fullName="陶景迪"/>
+    </user>
+    <user name="70671">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="VHTZEPRB" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/70671" priv="50" fullName="石新雨"/>
+    </user>
+    <user name="70928">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="WCUEXWDQ" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/70928" priv="50" fullName="高贵"/>
+    </user>
+    <user name="44024">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="VHTZEPRB" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/44024" priv="50" fullName="彭仁强"/>
+    </user>
+    <user name="71833">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="UNRMRPFY" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/71833" priv="50" fullName="聂少峰"/>
+    </user>
+    <user name="74648">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="WPAYEBXP" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/74648" priv="50" fullName="凌戈夫"/>
+    </user>
+    <user name="76744">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="HMUHPKEB" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/76744" priv="10" fullName="彭细珍"/>
+    </user>
+    <user name="78504">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="FKOZXWXJ" autoLogin="no" obsolete="no" group="ncc" encrypted="yes" lastPasswordChanged="1641866826" profileNfsPath="/incam/server/users/78504" priv="100" fullName="吕康侠"/>
+    </user>
+    <user name="79629">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="NDAUELYA" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/79629" priv="50" fullName="雷定兴"/>
+    </user>
+    <user name="43861">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="VHTZEPRB" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/43861" priv="50" fullName="严清霞"/>
+    </user>
+    <user name="83288">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="BRGKEVBD" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/83288" priv="96" fullName="翟鸣"/>
+    </user>
+    <user name="84310">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="TLKECNQJ" autoLogin="no" obsolete="no" group="ncc" encrypted="yes" lastPasswordChanged="1700206893" profileNfsPath="/incam/server/users/84310" priv="100" fullName="陆元会"/>
+    </user>
+    <user name="82430">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="ZXFACFQE" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/82430" priv="10" fullName="唐虹洁"/>
+    </user>
+    <user name="69971">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="OWHBWTXK" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/69971" priv="10" fullName="陈松"/>
+    </user>
+    <user name="50313">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="VHTZEPRB" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/50313" priv="50" fullName="马文慧"/>
+    </user>
+    <user name="69884">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="VHTZEPRB" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/69884" priv="10" fullName="郭德金"/>
+    </user>
+    <user name="69883">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="VHTZEPRB" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/69883" priv="10" fullName="陈余明"/>
+    </user>
+    <user name="54902">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="VHTZEPRB" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/54902" priv="10" fullName="方松"/>
+    </user>
+    <user name="87276">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="VHTZEPRB" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/87276" priv="50" fullName="丁天赐"/>
+    </user>
+    <user name="104648">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="VHTZEPRB" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/104648" priv="50" fullName="潘伟"/>
+    </user>
+    <user name="84311">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="VHTZEPRB" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/84311" priv="50" fullName="测试人"/>
+    </user>
+    <user name="88832">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="VHTZEPRB" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/88832" priv="50" fullName="刘超"/>
+    </user>
+    <user name="89627">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="VHTZEPRB" autoLogin="no" obsolete="no" group="ncc" encrypted="yes" profileNfsPath="/incam/server/users/89627" priv="100" fullName="杨年虎"/>
+    </user>
+    <user name="89646">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="VHTZEPRB" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/89646" priv="50" fullName="董飞"/>
+    </user>
+    <user name="90008">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="JUXMDCAD" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/90008" priv="50" fullName="江世勇"/>
+    </user>
+    <user name="92918">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="ZDEZWOUR" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/92918" priv="50" fullName="古亮宏"/>
+    </user>
+    <user name="93124">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="KVZWDVCC" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/93124" priv="50" fullName="王小桥"/>
+    </user>
+     <user name="93371">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="TSSHDXHB" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/93371" priv="50" fullName="李小文"/>
+    </user>
+     <user name="93839">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="DYKTXQAR" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/93839" priv="50" fullName="丁利"/>
+    </user>
+     <user name="94367">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="REQGJASS" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/94367" priv="50" fullName="虞磊"/>
+    </user>
+     <user name="96260">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="VHTZEPRB" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/96260" priv="50" fullName="范一丁"/>
+    </user>
+     <user name="96661">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="KOASFNZK" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/96661" priv="10" fullName="伍海琴"/>
+    </user>
+	<user name="97811">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="VHTZEPRB" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/97811" priv="50" fullName="陈慧琳"/>
+    </user>
+	<user name="68158">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="OGZTFFYK" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/68158" priv="50" fullName="王宁娟"/>
+    </user>
+	<user name="98828">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="GEEITSBX" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/98828" priv="50" fullName="龙莉清"/>
+    </user>
+      <user name="99000">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="BYXNFBQJ" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/99000" priv="10" fullName="王民"/>
+    </user>
+      <user name="99234">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="EJCTIJLG" autoLogin="no" obsolete="no" group="ncc" encrypted="yes" profileNfsPath="/incam/server/users/99234" priv="100" fullName="朱亮"/>
+    </user>
+     <user name="099234">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="EJCTIJLG" autoLogin="no" obsolete="no" group="ncc" encrypted="yes" profileNfsPath="/incam/server/users/99234" priv="100" fullName="朱亮"/>
+    </user>
+    <user name="99235">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="SEOTHCZO" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/99235" priv="50" fullName="张志龙"/>
+    </user>
+	<user name="99305">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="BODMZIXO" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/99305" priv="10" fullName="陈际生"/>
+    </user>
+     <user name="99359">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="BDSEHHAD" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/99359" priv="50" fullName="夏乔"/>
+    </user>
+     <user name="99795">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="HEDRTBNU" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/99795" priv="50" fullName="龙磊"/>
+    </user>
+     <user name="100206">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="EEJBRFFH" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/100206" priv="50" fullName="陈凯"/>
+    </user>
+     <user name="83263">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="VHTZEPRB" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/100206" priv="10" fullName="晏兵辉"/>
+    </user>
+      <user name="101455">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="YBGJHWTF" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/100206" priv="50" fullName="黄武"/>
+    </user>
+      <user name="101388">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="RYGTOECX" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/100206" priv="50" fullName="彭寒冰"/>
+    </user>
+    <user name="104695">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="RXYDTCZA" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/100206" priv="50" fullName="彭寒冰"/>
+    </user>
+	<user name="97808">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="VHTZEPRB" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/97808" priv="10" fullName="王海霞"/>
+    </user>
+	<user name="99927">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="VHTZEPRB" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/99927" priv="10" fullName="杨晓菲"/>
+    </user>
+    <user name="102359">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="WKPOWABT" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/102359" priv="50" fullName="崔逍遥"/>
+    </user>
+    <user name="104933">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="KYSUMJAM" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/104933" priv="50" fullName="黄义越"/>
+    </user>
+    <user name="104936">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="FUNSOZFJ" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/104936" priv="50" fullName="李文清"/>
+    </user>
+    <user name="187">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="VHTZEPRB" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/187" priv="10" fullName="梁涛"/>
+    </user>
+     <user name="105408">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="VXSIDAES" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/105408" priv="50" fullName="唐衡"/>
+    </user>
+	<user name="mi">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="VHTZEPRB" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/mi" priv="10" fullName="mi"/>
+    </user>	
+     <user name="106091">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="MYEQBYRL" autoLogin="no" obsolete="no" group="ncc" encrypted="yes" profileNfsPath="/incam/server/users/106091" priv="100" fullName="杨长明"/>
+    </user>
+     <user name="51094">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="MYEQBYRL" autoLogin="no" obsolete="no" group="ncc" encrypted="yes" profileNfsPath="/incam/server/users/51094" priv="50" fullName="张鹏鹏"/>
+    </user>
+	<user name="44556">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="UKLKUFWN" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/44556" priv="50" fullName="zy"/>
+    </user>
+    <user name="106646">
+        <properties useOSUserName="no" osUserName="" profileWinPath="" password="QTVWSWIP" autoLogin="no" obsolete="no" group="Cam" encrypted="yes" profileNfsPath="/incam/server/users/106646" priv="10" fullName="邓集锦"/>
+    </user>
+</Users>
