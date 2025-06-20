@@ -1,0 +1,39 @@
+<?xml version="1.0" standalone="yes"?>
+<RECORDS>
+	<RECORD>
+		<id>1</id>
+		<module_id>1</module_id>
+		<module_name>输出工具</module_name>
+		<script_name>资料导出</script_name>
+		<script_path>D:/scripts/Output.py</script_path>
+	</RECORD>
+	<RECORD>
+		<id>2</id>
+		<module_id>1</module_id>
+		<module_name>输出工具</module_name>
+		<script_name>工具导入</script_name>
+		<script_path>D:/scripts/InputDxfTool.py</script_path>
+	</RECORD>
+	<RECORD>
+		<id>3</id>
+		<module_id>2</module_id>
+		<module_name>实用工具</module_name>
+		<script_name>更新symbol</script_name>
+		<script_path>D:/scripts/UpdateSymbol.py</script_path>
+	</RECORD>
+	<RECORD>
+		<id>4</id>
+		<module_id>2</module_id>
+		<module_name>实用工具</module_name>
+		<script_name>属性工具</script_name>
+		<script_path>D:/scripts/AttrTool.py</script_path>
+	</RECORD>
+	<RECORD>
+		<id>5</id>
+		<module_id>3</module_id>
+		<module_name>pnl封边</module_name>
+		<script_name>单双面板封边</script_name>
+		<script_path>D:/scripts/SingleDoubleBoard.py</script_path>
+	</RECORD>
+</RECORDS>
+

@@ -1,0 +1,577 @@
+# File Name:    set_table
+# File Purpose: This file is called during the ADM process. It is a c-shell
+#               script which is used to manipulate the drill size, drill stage
+#               and drill method dependant on the tool parameters.
+# Written by:   Ian Ticehurst (Autom8 Ltd.)
+# Version 1A.:  Date: 14.09.00 - Initial design and development.
+# Version 1B.:  Date: 26.10.00 - Add check for metric hook units (not supported yet).
+# Version 1C.:  Date: 27.10.00 - Minor changes to warning flag variables. Also fix tool size setting.
+# Version 1D.:  Date: 16.01.01 - Add check for NT shell version. Also modify gawk calls dependant on version.
+# Version 1E.:  Date: 20.02.01 - Ensure that all "gawk" calls are modified to "awk" and that "awk95" is aliased.
+#
+# Date: 29.04.07 - New output parameters: Fix tool order, fix tool number and cool spread value.
+#
+############################# Start of notes ###############################
+# This file is located in the hooks/ncd directory and forms part of the Auto Drill
+# Manager file set. It is a c-shell script which can be configured to perform changes
+# to the ADM drill table (and thus the drill output files) dependant on the different
+# parameters allocated to each tool (type, size, hole/slot etc.). 
+# This script is started with two parameters passed to it. These parameters are a file
+# which can be sourced ($1), and the name of an output file which the system will read
+# when this program exits ($2). The source file contains details of the drill table and
+# the ADM parameters and this is the information that can be used to define any actions
+# required. The file contains the following formatted information:-
+#
+#set ncLAYER = (01-drl )
+#set ncSET   = (set-exc)
+#set ncMACHINE = (m1 )
+#set ncTHICKNESS = (0 )
+#set ncSHAPE        = (slot  hole  hole  hole  hole )
+#set ncTYPE         = (PLATE PLATE PLATE PLATE PLATE)
+#set ncSIZE         = (10    16    20    30    32   )
+#set ncTOUCH_COPPER = (no    no    no    no    no   )
+#set ncFLAG         = (0     0     3     0     5   ) 
+#set ncCOUNT        = (10    39735 15    5     40   ) 
+#set ncPLUS_TOL     = (0     0     0     0     0    ) 
+#set ncMINUS_TOL    = (0     0     0     0     0    )
+#set ncDESIGNATOR   = (""    ""    ""    ""    ""   )
+#
+# The typical method of using this file is to work through the array information and
+# make decisions such as drill stage 1,2 or 3 dependant on the tool attributes. The
+# way that changes are made is to define an output file (the file name provided as $2)
+# which should contain a line of parameters for each tool entry line. In addition, pilot
+# drill entries can be added by this script.
+# Each output line must contain the following values:-
+#
+#  1. original index in array (starting with 1)
+#  2. tool size (mils)
+#  3. pilot indicator (y/n)
+#  4. mode - (regular, nibble, rout)
+#  5. speed - spindle speed
+#  6. feed rate 
+#  7. nibble type (machine, sw)
+#  8. stage - drill stage (1,2,3)
+#  9. rout mode (sep, same)
+# 10. maximal number of hits per bit
+# 11. designator - (if empty - .none)
+# 12. original hole diameter (applicable only for nibble drilling)
+# 13. Predefined fix tool order  (0,1,2...) 0-undefined
+# 14. Predefined fix tool number (0,1,2...) 0-undefined 
+# 15. Cool spread value  
+#	"-1" - use global value, 
+#	" 0" - not perform Cool Spread analysis for the tool.
+#	">0" - use this value to "Cool spread".
+#
+# This example program has been written to provide control over most of the functionality
+# through the use of variables at the start of the program. Most site specific configurations
+# should be achievable by setting these variables. This includes the following functions:-
+#
+# 1. Pilot hole addition (on/off, pilot hole size, min. and max. sizes to pilot drill).
+# 2. Machine canned cycles for slots and nibble drilled holes (turn on/off).
+# 3. Ensure tool sizes are true metric (on/off).
+# 4. Nibble drilling (on/off, hole size to use).
+# 5. Drill in stage 1,2,3 or rout stage (choose by hole size/type and touching copper).
+# 6. Program abort if drilling cannot be performed correctly.
+# 7. Default settings for spindle speed, feed, and maximum hits.
+############################# End of notes ################################ 
+
+# Section to set up general parameters and variables.
+# ---------------------------------------------------
+# Define correct temp. dir. depending on env. vars.
+
+if ($?GENESIS_TMP) then
+	set TMP = $GENESIS_TMP
+else if ($?GENESIS_DIR) then
+	set TMP = $GENESIS_DIR/tmp
+else
+	set TMP = /genesis/tmp
+endif
+
+set NCD_DIR = $GENESIS_DIR/sys/hooks/ncd
+
+# Set the INFO alias and the tmp INFO file.
+set INFO = $TMP/info
+alias DO_INFO 'COM info,out_file=$INFO,write_mode=replace,args=\!:*;source $INFO;rm $INFO'
+
+# Set up gui data and response files.
+set GUI_DATA = $TMP/gui_data.$$
+set GUI_RESP = $TMP/gui_resp.$$
+
+# Detect current operating system.
+set CURR_OS = `uname -s`
+
+# If current operating system is NT, set alias to call awk95 as "awk".
+if ($CURR_OS == "WINDOWS_NT") then
+	alias awk '$GENESIS_DIR/e${GENESIS_VER}/nt/bin/awk95'
+endif
+
+# Detect current tcsh version (old = 0, new = 1).
+if ($CURR_OS == "WINDOWS_NT") then
+	set NT_VER = `echo "$version" | awk -F'-' '{if ($7 < 5.0) print 0; else print 1}'`
+endif
+
+# Set variable names for parameter file to source and out_file to write to.
+set source_script = $1
+set out_file      = $2
+
+# Force units to inch.
+COM ncset_units,units=inch
+
+# Source standard parameter file.
+source $source_script
+
+# Check the machine file to ensure that imperial units are being used
+# *** Note that the example hooks currently only support mils.
+if ($CURR_OS == "WINDOWS_NT") then
+	set HK_UNITS = `grep "^hook_units" $NCD_DIR/config/machines/$ncMACHINE | awk -F' ' '{print $3; exit}'`
+else
+	set HK_UNITS = `grep "^hook_units" $NCD_DIR/config/machines/$ncMACHINE | awk -F' ' '{print $3; exit}'`
+endif	
+
+if ($HK_UNITS != "inch") then
+	# Hook units are not in inch. Warn user to change machine file (or rewrite hook) and exit.
+	echo "WIN 200 200" >> $GUI_DATA
+	echo "FONT tbr18" >> $GUI_DATA
+	echo "BG 992222" >> $GUI_DATA
+	echo "FG 999999" >> $GUI_DATA
+	echo "LABEL ADM Hook Units Warning Pop-up." >> $GUI_DATA
+	echo "LABEL WARNING - The hook_units in machine file $ncMACHINE is set to metric." >> $GUI_DATA
+	echo "LABEL These example hooks currently only support mils.">> $GUI_DATA
+	echo "LABEL The following actions are possible:-" >> $GUI_DATA
+	echo "LABEL 1. Change the line in the machine file to read hook_units = inch" >> $GUI_DATA
+	echo "LABEL 2. Modify the set_table hook and change all parameter values to be metric" >> $GUI_DATA
+	echo "END" >> $GUI_DATA
+	
+	gui $GUI_DATA
+	\rm $GUI_DATA
+	goto abort
+endif
+
+# Section to set up operational variables.
+# ----------------------------------------
+# (NOTE - Where values below are used as tool sizes - the values are always in mils.)
+# -----------------------------------------------------------------------------------
+# Variable to control if pilot holes should be used (0 = no, 1 = yes).
+set USE_PILOT = 0
+# Variable to determine the size of pilot holes used (size in mils).
+set PILOT_SZE = 120
+# Variable to set minimum pth hole size requiring pilot hole (size in mils).
+set PTH_MIN_PILOT = 150
+# Variable to set maximum pth hole size requiring pilot hole (size in mils).
+set PTH_MAX_PILOT = 999
+# Variable to set minimum npth hole size requiring pilot hole (size in mils).
+set NPTH_MIN_PILOT = 150
+# Variable to set maximum npth hole size requiring pilot hole (size in mils).
+set NPTH_MAX_PILOT = 999
+
+# Variable to turn on/off drill machine canned cycle code for nibble drilling (0=on, 1=off).
+# (Note: the use of the user defined programs is determined by the setting in the machine file).
+set USE_CUSTM_NIB = 1
+# Variable to turn on/off drill machine canned cycle code for peck drilled slots (0=on, 1=off).
+# (Note: the use of the user defined programs is determined by the setting in the machine file).
+set USE_CUSTM_SLT = 1
+
+# Create output files with tool sizes based on metric tools (0=yes, 1=no).
+set OUTL_MM = 0
+
+# Define drill size to use for nibble drilling.
+set NIBB_DRL = 120
+
+# Nibble drill pth holes larger than this value (size in mils).
+set PTH_NIBB = 210
+# Biggest pth drill size in stage 1 drill program (including nibble drilled holes).
+set MAX_PTH_ST1 = 245
+# Action to take if pth drill size is too big (1=drill stage 2, 2=drill stage 3, 3=warn user and exit).
+set MAX_PTH_ACT = 1
+# Smallest pth drill size in stage 1 drill program.
+set MIN_PTH_ST1 = 0
+# Action to take if pth drill size is too small (1=drill stage 2, 2=drill stage 3, 3=warn user and exit).
+set MIN_PTH_ACT = 3
+
+# Nibble drill npth holes larger than this value (size in mils).
+set NPTH_NIBB = 210
+# Biggest npth drill size in stage 1 drill program (including nibble drilled holes).
+set MAX_NPTH_ST1 = 245
+# Action to take if npth drill size is too big (0=drill at rout, 1=drill stage 2, 2=drill stage 3, 3=warn user and exit).
+set MAX_NPTH_ACT = 0
+# Smallest npth drill size in stage 1 drill program.
+set MIN_NPTH_ST1 = 0
+# Action to take if npth drill size is too small (0=drill at rout, 1=drill stage 2, 2=drill stage 3, 3=warn user and exit).
+set MIN_NPTH_ACT = 3
+# Action to take if npth drill touches copper (0=drill at rout, 1=drill stage 2, 2=drill stage 3, 3=warn user and exit, 4=no action).
+set NPTH_TC = 4
+
+# Biggest pth slot size in stage 1 drill program.
+set MAX_PTHSL_ST1 = 210
+# Action to take if pth slot size is too big (1=drill stage 2, 2=drill stage 3, 3=warn user and exit).
+set MAX_PTHSL_ACT = 1
+# Smallest pth slot size in stage 1 drill program.
+set MIN_PTHSL_ST1 = 0
+# Action to take if pth slot size is too small (1=drill stage 2, 2=drill stage 3, 3=warn user and exit).
+set MIN_PTHSL_ACT = 3
+
+# Biggest npth slot size in stage 1 drill program.
+set MAX_NPTHSL_ST1 = 200
+# Action to take if npth slot size is too big (0=drill at rout, 1=drill stage 2, 2=drill stage 3, 3=warn user and exit).
+set MAX_NPTHSL_ACT = 0
+# Smallest npth slot size in stage 1 drill program.
+set MIN_NPTHSL_ST1 = 0
+# Action to take if npth slot size is too small (0=drill at rout, 1=drill stage 2, 2=drill stage 3, 3=warn user and exit).
+set MIN_NPTHSL_ACT = 3
+# Action to take if npth slot touches copper (0=drill at rout, 1=drill stage 2, 2=drill stage 3, 3=warn user and exit, 4=no action).
+set NPTHSL_TC = 4
+
+# Define if system should show user a warning if drill holes are moved to extra rout layer (0=no warning, 1=show warning).
+set MV2RT_WARN = 1
+# Define if system should show user a warning if program aborts due to being outside set limits (0=no warning, 1=show warning).
+set SHOW_EXIT_WARN = 1
+
+# Set default spindle speed, feed rate and maximum hits.
+set SPIN = 16000
+set FEED = 200
+set HITS = 5000
+
+# Section to define actions dependant on tool information.
+# --------------------------------------------------------
+# Set rout warning flag to no ("0") as default.
+set ROUT_WARN = 0
+# Set exit warning flag to no ("0") as default.
+set EXIT_WARN = 0
+
+set COUNT = 1
+foreach TLSZ ($ncSIZE)
+	# Set hole size to be nearest integer (to avoid if loop crashing).
+	if ($CURR_OS == "WINDOWS_NT") then
+		if ($NT_VER == 0) then
+			set SIZE = `echo "$ncSIZE[$COUNT]" | awk -F' ' '{printf(\"%4.0f\",$1)}'`
+		else
+			set SIZE = `echo "$ncSIZE[$COUNT]" | awk -F' ' '{printf("%4.0f",$1)}'`
+		endif
+	else
+		set SIZE = `echo "$ncSIZE[$COUNT]" | awk -F' ' '{printf("%4.0f",$1)}'`
+	endif
+
+	# Set pilot hole indicator to no ("n") as default.
+	set PILOT = `echo "n"`
+
+	# Set default drill stage to one.
+	set D_STAGE = 1
+
+	# Switch null tool output line off (default).
+	set NULL_LINE = 0
+
+	# Check to see if working with hole or slot.
+	if ($ncSHAPE[$COUNT] == "hole") then
+		# Check to see if hole is plated or un-plated.
+		if ($ncTYPE[$COUNT] == "Plate") then
+			# Check to see if pilot holes are required.
+			if ($USE_PILOT == 1 && $SIZE < $PTH_NIBB) then
+				if ($SIZE >= $PTH_MIN_PILOT && $SIZE <= $PTH_MAX_PILOT) then
+					# Switch pilot holes on.
+					set PILOT = `echo "y"`
+				endif
+			endif
+
+			# Set correct mode type (regular or nibble) and nibble type (machine or sw).
+			if ($SIZE > $PTH_NIBB) then
+				set MODE = `echo "nibble"`
+				if ($USE_CUSTM_NIB == 0) then
+					set TYPE = `echo "machine"`
+				else
+					set TYPE = `echo "sw"`
+				endif
+			else
+				set MODE = `echo "regular"`
+				set TYPE = `echo "machine"`
+			endif
+
+			# Set correct drill stage (1,2, or 3). 
+			if ($SIZE > $MAX_PTH_ST1) then
+				if ($MAX_PTH_ACT == 1) then
+					set D_STAGE = 2
+				else if ($MAX_PTH_ACT == 2) then
+					set D_STAGE = 3
+				else if ($MAX_PTH_ACT == 3) then
+					echo "LABEL Tool designator number $COUNT - PTH hole size $ncSIZE[$COUNT] too big to drill" >> $TMP/exit_warn.$$
+					set EXIT_WARN = 1
+					set NULL_LINE = 1
+				endif
+			else if ($SIZE < $MIN_PTH_ST1) then
+				if ($MIN_PTH_ACT == 1) then
+					set D_STAGE = 2
+				else if ($MIN_PTH_ACT == 2) then
+					set D_STAGE = 3
+				else if ($MIN_PTH_ACT == 3) then
+					echo "LABEL Tool designator number $COUNT - PTH hole size $ncSIZE[$COUNT] too small to drill" >> $TMP/exit_warn.$$
+					set EXIT_WARN = 1
+					set NULL_LINE = 1
+				endif
+			endif
+		else
+			# Check to see if pilot holes are required.
+			if ($USE_PILOT == 1 && $SIZE < $NPTH_NIBB) then
+				if ($SIZE >= $NPTH_MIN_PILOT && $SIZE <= $NPTH_MAX_PILOT) then
+					# Switch pilot holes on.
+					set PILOT = `echo "y"`
+				endif
+			endif
+ 
+			# Set correct mode type (regular, nibble or rout) and nibble type (machine or sw).
+			if ($SIZE > $NPTH_NIBB) then
+				set MODE = `echo "nibble"`
+				if ($USE_CUSTM_NIB == 0) then
+					set TYPE = `echo "machine"`
+				else
+					set TYPE = `echo "sw"`
+				endif
+			else
+				set MODE = `echo "regular"`
+				set TYPE = `echo "machine"`
+			endif
+
+			# Set correct drill stage (1,2, or 3). 
+			if ($SIZE > $MAX_NPTH_ST1) then
+				if ($MAX_NPTH_ACT == 0) then
+					set D_STAGE = 1
+					set MODE = `echo "rout"`
+					echo "LABEL Tool designator number $COUNT - NPTH hole size $ncSIZE[$COUNT] is moved to new rout layer" >> $TMP/rout_warn.$$
+					set ROUT_WARN = 1
+				else if ($MAX_NPTH_ACT == 1) then
+					set D_STAGE = 2
+				else if ($MAX_NPTH_ACT == 2) then
+					set D_STAGE = 3
+				else if ($MAX_NPTH_ACT == 3) then
+					echo "LABEL Tool designator number $COUNT - NPTH hole size $ncSIZE[$COUNT] too big to drill" >> $TMP/exit_warn.$$
+					set EXIT_WARN = 1
+					set NULL_LINE = 1
+				endif
+			else if ($SIZE < $MIN_NPTH_ST1) then
+				if ($MIN_NPTH_ACT == 0) then
+					set D_STAGE = 1
+					set MODE = `echo "rout"`
+					echo "LABEL Tool designator number $COUNT - NPTH hole size $ncSIZE[$COUNT] is moved to new rout layer" >> $TMP/rout_warn.$$
+					set ROUT_WARN = 1
+				else if ($MIN_NPTH_ACT == 1) then
+					set D_STAGE = 2
+				else if ($MIN_NPTH_ACT == 2) then
+					set D_STAGE = 3
+				else if ($MIN_NPTH_ACT == 3) then
+					echo "LABEL Tool designator number $COUNT - NPTH hole size $ncSIZE[$COUNT] too small to drill" >> $TMP/exit_warn.$$
+					set EXIT_WARN = 1
+					set NULL_LINE = 1
+				endif
+			endif
+
+			# If npth hole touches copper, take relevant action.
+			if ($ncTOUCH_COPPER[$COUNT] == "yes") then
+				if ($NPTH_TC == 0) then
+					set D_STAGE = 1
+					set MODE = `echo "rout"`
+					echo "LABEL Tool designator number $COUNT - NPTH hole size $ncSIZE[$COUNT] is moved to new rout layer" >> $TMP/rout_warn.$$
+					set ROUT_WARN = 1
+				else if ($NPTH_TC == 1) then
+					set D_STAGE = 2
+				else if ($NPTH_TC == 2) then
+					set D_STAGE = 3
+				else if ($NPTH_TC == 3) then
+					echo "LABEL Tool designator number $COUNT - NPTH hole size $ncSIZE[$COUNT] touches copper" >> $TMP/exit_warn.$$
+					set EXIT_WARN = 1
+					set NULL_LINE = 1
+				endif
+			endif
+		endif
+	else
+		# Check to see if slot is plated or un-plated.
+		if ($ncTYPE[$COUNT] == "Plate") then
+			# Set correct mode type and nibble type (machine or sw).
+			set MODE = `echo "regular"`
+			if ($USE_CUSTM_SLT == 0) then
+				set TYPE = `echo "machine"`
+			else
+				set TYPE = `echo "sw"`
+			endif
+
+			# Set correct drill stage (1,2, or 3). 
+			if ($SIZE > $MAX_PTHSL_ST1) then
+				if ($MAX_PTHSL_ACT == 1) then
+					set D_STAGE = 2
+				else if ($MAX_PTHSL_ACT == 2) then
+					set D_STAGE = 3
+				else if ($MAX_PTHSL_ACT == 3) then
+					echo "LABEL Tool designator number $COUNT - PTH slot size $ncSIZE[$COUNT] too big to drill" >> $TMP/exit_warn.$$
+					set EXIT_WARN = 1
+					set NULL_LINE = 1
+				endif
+			else if ($SIZE < $MIN_PTHSL_ST1) then
+				if ($MIN_PTHSL_ACT == 1) then
+					set D_STAGE = 2
+				else if ($MIN_PTHSL_ACT == 2) then
+					set D_STAGE = 3
+				else if ($MIN_PTHSL_ACT == 3) then
+					echo "LABEL Tool designator number $COUNT - PTH slot size $ncSIZE[$COUNT] too small to drill" >> $TMP/exit_warn.$$
+					set EXIT_WARN = 1
+					set NULL_LINE = 1
+				endif
+			endif		
+		else
+			# Set correct mode type (regular or rout) and nibble type (machine or sw).
+			set MODE = `echo "regular"`
+			if ($USE_CUSTM_SLT == 0) then
+				set TYPE = `echo "machine"`
+			else
+				set TYPE = `echo "sw"`
+			endif
+
+			# Set correct drill stage (1,2, or 3). 
+			if ($SIZE > $MAX_NPTHSL_ST1) then
+				if ($MAX_NPTHSL_ACT == 0) then
+					set D_STAGE = 1
+					set MODE = `echo "rout"`
+					echo "LABEL Tool designator number $COUNT - NPTH slot size $ncSIZE[$COUNT] is moved to new rout layer" >> $TMP/rout_warn.$$
+					set ROUT_WARN = 1
+				else if ($MAX_NPTHSL_ACT == 1) then
+					set D_STAGE = 2
+				else if ($MAX_NPTHSL_ACT == 2) then
+					set D_STAGE = 3
+				else if ($MAX_NPTHSL_ACT == 3) then
+					echo "LABEL Tool designator number $COUNT - NPTH slot size $ncSIZE[$COUNT] too big to drill" >> $TMP/exit_warn.$$
+					set EXIT_WARN = 1
+					set NULL_LINE = 1
+				endif
+			else if ($SIZE < $MIN_NPTHSL_ST1) then
+				if ($MIN_NPTHSL_ACT == 0) then
+					set D_STAGE = 1
+					set MODE = `echo "rout"`
+					echo "LABEL Tool designator number $COUNT - NPTH slot size $ncSIZE[$COUNT] is moved to new rout layer" >> $TMP/rout_warn.$$
+					set ROUT_WARN = 1
+				else if ($MIN_NPTHSL_ACT == 1) then
+					set D_STAGE = 2
+				else if ($MIN_NPTHSL_ACT == 2) then
+					set D_STAGE = 3
+				else if ($MIN_NPTHSL_ACT == 3) then
+					echo "LABEL Tool designator number $COUNT - NPTH hole size $ncSIZE[$COUNT] too small to drill" >> $TMP/exit_warn.$$
+					set EXIT_WARN = 1
+					set NULL_LINE = 1
+				endif
+			endif
+
+			# If npth slot touches copper, take relevant action.
+			if ($ncTOUCH_COPPER[$COUNT] == "yes") then
+				if ($NPTHSL_TC == 0) then
+					set D_STAGE = 1
+					set MODE = `echo "rout"`
+					echo "LABEL Tool designator number $COUNT - NPTH slot size $ncSIZE[$COUNT] is moved to new rout layer" >> $TMP/rout_warn.$$
+					set ROUT_WARN = 1
+				else if ($NPTHSL_TC == 1) then
+					set D_STAGE = 2
+				else if ($NPTHSL_TC == 2) then
+					set D_STAGE = 3
+				else if ($NPTHSL_TC == 3) then
+					echo "LABEL Tool designator number $COUNT - NPTH slot size $ncSIZE[$COUNT] touches copper" >> $TMP/exit_warn.$$
+					set EXIT_WARN = 1
+					set NULL_LINE = 1
+				endif
+			endif
+		endif
+	endif
+
+	# Calculate tool size based on metric conversion.
+	if ($OUTL_MM == 0) then
+		if ($CURR_OS == "WINDOWS_NT") then
+			if ($NT_VER == 0) then
+				set TOOL_SIZE = `echo "$ncSIZE[$COUNT]" | awk -F' ' '{print ($1 * 0.0254)}' | awk -F' ' '{printf(\"%4.2f\",$1)}'`
+				set TOOL_SIZE = `echo "$TOOL_SIZE" | awk -F' ' '{print ($1 / 0.0254)}'`
+				set PILOT_SZE = `echo "$PILOT_SZE" | awk -F' ' '{print ($1 * 0.0254)}' | awk -F' ' '{printf(\"%4.2f\",$1)}'`
+				set PILOT_SZE = `echo "$PILOT_SZE" | awk -F' ' '{print ($1 / 0.0254)}'`
+				set NIBB_DRL = `echo "$NIBB_DRL" | awk -F' ' '{print ($1 * 0.0254)}' | awk -F' ' '{printf(\"%4.2f\",$1)}'`
+				set NIBB_DRL = `echo "$NIBB_DRL" | awk -F' ' '{print ($1 / 0.0254)}'`
+			else
+				set TOOL_SIZE = `echo "$ncSIZE[$COUNT]" | awk -F' ' '{print ($1 * 0.0254)}' | awk -F' ' '{printf("%4.2f",$1)}'`
+				set TOOL_SIZE = `echo "$TOOL_SIZE" | awk -F' ' '{print ($1 / 0.0254)}'`
+				set PILOT_SZE = `echo "$PILOT_SZE" | awk -F' ' '{print ($1 * 0.0254)}' | awk -F' ' '{printf("%4.2f",$1)}'`
+				set PILOT_SZE = `echo "$PILOT_SZE" | awk -F' ' '{print ($1 / 0.0254)}'`
+				set NIBB_DRL = `echo "$NIBB_DRL" | awk -F' ' '{print ($1 * 0.0254)}' | awk -F' ' '{printf("%4.2f",$1)}'`
+				set NIBB_DRL = `echo "$NIBB_DRL" | gawk -F' ' '{print ($1 / 0.0254)}'`
+			endif
+		else
+			set TOOL_SIZE = `echo "$ncSIZE[$COUNT]" | awk -F' ' '{print ($1 * 0.0254)}' | awk -F' ' '{printf("%4.2f",$1)}'`
+			set TOOL_SIZE = `echo "$TOOL_SIZE" | awk -F' ' '{print ($1 / 0.0254)}'`
+			set PILOT_SZE = `echo "$PILOT_SZE" | awk -F' ' '{print ($1 * 0.0254)}' | awk -F' ' '{printf("%4.2f",$1)}'`
+			set PILOT_SZE = `echo "$PILOT_SZE" | awk -F' ' '{print ($1 / 0.0254)}'`
+			set NIBB_DRL = `echo "$NIBB_DRL" | awk -F' ' '{print ($1 * 0.0254)}' | awk -F' ' '{printf("%4.2f",$1)}'`
+			set NIBB_DRL = `echo "$NIBB_DRL" | awk -F' ' '{print ($1 / 0.0254)}'`
+		endif
+	else
+		set TOOL_SIZE = `echo "$ncSIZE[$COUNT]"`
+	endif
+
+	# Add line to output file (to redefine tool table settings).
+	if ($NULL_LINE == 1) then
+		# Program is configured to abort due to tool sizes / types. Add null line to drill table.
+		echo $COUNT 1 n regular 1 1 machine 1 sep 1 $COUNT >> $out_file
+	else
+		if ($PILOT == "n") then
+			if ($MODE == "nibble") then
+				echo $COUNT $NIBB_DRL $PILOT $MODE $SPIN $FEED $TYPE $D_STAGE sep $HITS $COUNT $TOOL_SIZE >> $out_file
+			else
+				echo $COUNT $TOOL_SIZE $PILOT $MODE $SPIN $FEED $TYPE $D_STAGE sep $HITS $COUNT >> $out_file
+			endif
+		else
+			echo $COUNT $TOOL_SIZE n $MODE $SPIN $FEED $TYPE $D_STAGE sep $HITS $COUNT >> $out_file
+			echo $COUNT $PILOT_SZE $PILOT $MODE $SPIN $FEED $TYPE $D_STAGE sep $HITS $COUNT >> $out_file
+		endif
+	endif
+	@ COUNT ++
+end
+
+# If exit warning is set put window on screen to advise user.
+if ($EXIT_WARN == 1 && $SHOW_EXIT_WARN == 1) then
+	echo "WIN 200 200" >> $GUI_DATA
+	echo "FONT tbr18" >> $GUI_DATA
+	echo "BG 992222" >> $GUI_DATA
+	echo "FG 999999" >> $GUI_DATA
+	echo "LABEL ADM Drill Table Hook Pop-up." >> $GUI_DATA
+	echo "LABEL WARNING - Hook settings have detected a situation where the script aborts." >> $GUI_DATA
+	echo "LABEL The details are as follows:-" >> $GUI_DATA
+	echo "FONT tbi18" >> $GUI_DATA
+	echo "BG 336644" >> $GUI_DATA
+	cat $TMP/exit_warn.$$ >> $GUI_DATA
+	echo "FONT tbr18" >> $GUI_DATA
+	echo "BG 992222" >> $GUI_DATA	
+	echo "END" >> $GUI_DATA
+	
+	gui $GUI_DATA > $GUI_RESP
+	source $GUI_RESP; \rm $GUI_RESP; \rm $GUI_DATA
+endif
+
+# If rout warning is set put window on screen to advise user.
+if ($ROUT_WARN == 1 && $MV2RT_WARN == 1) then
+	echo "WIN 200 200" >> $GUI_DATA
+	echo "FONT tbr18" >> $GUI_DATA
+	echo "BG 992222" >> $GUI_DATA
+	echo "FG 999999" >> $GUI_DATA
+	echo "LABEL ADM Drill Table Hook Pop-up." >> $GUI_DATA
+	echo "LABEL WARNING - Some features will be moved to an additional rout layer." >> $GUI_DATA
+	echo "LABEL These items will be COPIED to the layer drl2rt...">> $GUI_DATA
+	echo "LABEL The details are as follows:-" >> $GUI_DATA
+	echo "FONT tbi18" >> $GUI_DATA
+	echo "BG 336644" >> $GUI_DATA
+	cat $TMP/rout_warn.$$ >> $GUI_DATA
+	echo "FONT tbr18" >> $GUI_DATA
+	echo "BG 992222" >> $GUI_DATA	
+	echo "END" >> $GUI_DATA
+	
+	gui $GUI_DATA > $GUI_RESP
+	source $GUI_RESP; \rm $GUI_RESP; \rm $GUI_DATA
+endif
+
+abort:
+# Clean up temp. files if they exist.
+if (-e $TMP/exit_warn.$$) then
+	\rm $TMP/exit_warn.$$
+endif
+if (-e $TMP/rout_warn.$$) then
+	\rm $TMP/rout_warn.$$
+endif
+
+exit

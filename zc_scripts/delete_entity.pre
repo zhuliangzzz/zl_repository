@@ -1,0 +1,18 @@
+#!/bin/csh
+#20240626 zl 删除料号前导出该料号到指定路径下
+
+source $1
+
+set el_type = $lnVAL[2]
+set el_name = $lnVAL[3]
+echo "$el_type $el_name"
+alias mkdir c:/usr/local/bin/mkdir
+set path = "D:/DeleteBackTgz"
+if ($el_type == "job") then
+    if (! -e $path) then
+        mkdir $path
+    endif 
+    COM export_job,job=$el_name,path=$path,mode=tar_gzip,submode=full,overwrite=yes
+endif
+exit
+
