@@ -1031,6 +1031,12 @@ if __name__ == '__main__':
 
     # --获取STEP列表
     step_list = get_panelset_sr_step(jobName, 'panel')
+    if not step_list:
+        msg_box = msgBox()
+        msg_box.warning(None, '警告,程序将以10004退出',
+                        'panel内未拼板，请先完成panel拼板，并再次运行程序！',
+                        QMessageBox.Ok)
+        exit(1)
     if g.LAYER_EXISTS('tk.ykj', job=jobName,step=step_list[0]) == 'yes':
         msg_box = msgBox()
         msg_box.warning(None, '警告,程序将以10004退出', 'tk.ykj 层别存在，如再次运行添加槽孔旋转及预钻孔旋转，请还原tk.ykj层别到钻孔层，并再次运行程序！', QMessageBox.Ok)

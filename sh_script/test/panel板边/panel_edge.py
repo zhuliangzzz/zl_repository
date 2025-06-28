@@ -4,6 +4,7 @@
 # 20241217 zl 增加埋孔铆钉孔&防爆孔套开次外层线路
 # 20250107 zl 有多次文字跑板边时生成的文字层名与MI指示一致，PNL板边的层名也要保持一致
 实现：获取mi流程中的文字流程中的文字层进行创建，并修改num的位置 需求链接：http://192.168.2.120:82/zentao/story-view-7790.html
+# 20250623 zl qe4304pit03a1不加周期，只提醒不退出程序
 """
 
 import os
@@ -61,9 +62,12 @@ try:
                          matrixinfo["gROWlayer_type"][i] == "power_ground")]
     from auto_calc_target_distance import get_target_distance
     from genesisPackages import innersignalLayers, get_profile_limits, get_sr_limits, \
-         mai_drill_layers
+         mai_drill_layers, top
     from get_erp_job_info import get_cu_weight, get_inplan_mrp_info, \
-         get_StackupData, get_job_type
+         get_StackupData, get_job_type, get_user_authority
+    
+    user = top.getUser()
+    cam_director = get_user_authority(user, u"审核人权限")    
 except Exception, e:
     print e
     pass
@@ -1613,6 +1617,9 @@ class InPlan(PUBLIC):
         # pprint (process_data)
         stack_data = {}
         for i in range(len(process_data)):
+            if self.JOB == "DA8608PI999A1".lower():
+                if process_data[i]['FILM_BG_'] is None:
+                    continue
             cur_lamin_num = int(process_data[i]['PROCESS_NUM_']) - 1
             cur_gm_size_inch = process_data[i]['DF_WIDTH']
             top_bot_lay = process_data[i]['FILM_BG_'].lower().split(',')
@@ -1660,6 +1667,23 @@ class InPlan(PUBLIC):
                                                                 lamin_num=cur_lamin_num, gm_inch=cur_gm_size_inch)
                 stack_data[top_bot_lay[1].split("-")[0]] = dict(layerSide='bot', layerMode=layerMode,materialType=materialType,
                                                                 lamin_num=cur_lamin_num, gm_inch=cur_gm_size_inch)
+                
+        if self.JOB == "DA8608PI999A1".lower():
+            top_bot_lay = ["l4", "l5"]
+            stack_data[top_bot_lay[0]] = {}
+            stack_data[top_bot_lay[1]] = {}
+            stack_data[top_bot_lay[0]]['layerSide'] = 'top'
+            stack_data[top_bot_lay[0]]['layerMode'] = 'inn'
+            stack_data[top_bot_lay[0]]['materialType'] = 'core'
+            stack_data[top_bot_lay[0]]['lamin_num'] = 0
+            stack_data[top_bot_lay[0]]['gm_inch'] = 0
+
+            stack_data[top_bot_lay[1]]['layerSide'] = 'bot'
+            stack_data[top_bot_lay[1]]['layerMode'] = 'inn'
+            stack_data[top_bot_lay[1]]['materialType'] = 'core'
+            stack_data[top_bot_lay[1]]['lamin_num'] = 0
+            stack_data[top_bot_lay[1]]['gm_inch'] = 0            
+            
         # pprint (stack_data)
         return stack_data
 
@@ -2579,6 +2603,14 @@ class MainWindow(QtGui.QWidget):
         self.ui.topLabel.setText(u'胜宏科技HDI Panel板边 @ %s' % self.JOB)
         # --暂时禁用ape3000
         self.ui.ape3000_base.setEnabled(False)
+        #伍青通知 暂时禁用pin_lam 20250312 by lyh
+        # 20250623 zl 加入用户93124（王小桥）
+        cam_user = top.getUser()
+        if cam_user in ["187", "84310", "51059", "101455", "102359", "89627", '93124']:
+            pass
+        else:            
+            self.ui.pin_lam_mode.setEnabled(False)
+        
         self.testButton_clicked = False
         self.ui.panelizationButton.hide()
         # self.ui.testButton.hide ()
@@ -3281,7 +3313,7 @@ class MainWindow(QtGui.QWidget):
                     start_num = int(tmp_item[1:3])
                     end_num = int(tmp_item[3:])
                 sz_layer = 'sz%s-%s.lp' % (start_num, end_num)
-                dq_layer = 'sz%s-%s...dq' % (start_num, end_num)
+                dq_layer = 'sz%s-%s.dq' % (start_num, end_num)
                 mach_drill = 'b%s-%s' % (start_num, end_num)
                 if mach_drill not in self.parm['drill_array']:
                     mach_drill = 'm%s-%s' % (start_num, end_num)
@@ -5064,9 +5096,10 @@ class MainWindow(QtGui.QWidget):
                     msg_box.critical(self, '错误', 'x方向留边太小,至少要10.16才可以加下铆钉symbol', QMessageBox.Ok)
                     check_result = False
                 if mao_pin2SR < mao_pin2SR_min:
-                    msg_box = msgBox()
-                    msg_box.critical(self, '错误', '铆钉x的值太小,铆钉开花可能会进板内,请加大%s' % mao_pin_base, QMessageBox.Ok)
-                    check_result = False
+                    if not re.match('ba8616ph824da',self.JOB):
+                        msg_box = msgBox()
+                        msg_box.critical(self, '错误', '铆钉x的值太小,铆钉开花可能会进板内,请加大%s' % mao_pin_base, QMessageBox.Ok)
+                        check_result = False
                 if mao_pin2profile < mao_pin2profile_min:
                     msg_box = msgBox()
                     msg_box.critical(self, '错误', '铆钉x的值太大,会出板外,请减少%s' % mao_pin_base, QMessageBox.Ok)
@@ -5169,6 +5202,9 @@ class MainWindow(QtGui.QWidget):
             msg_box = msgBox()
             msg_box.warning(self, '警告', '请选择层添加周期....', QMessageBox.Ok)
             check_result = False
+            # 20250623 zl
+            if jobname[:13] == 'qe4304pit03a1':
+                check_result = True
         if self.sh_site == '':
             # --因为厂别直接从InPlan和ERP中查询获得，不可能为空,此处列出只是为了在重构Panel时保持与原有逻辑一致
             msg_box = msgBox()
@@ -5959,7 +5995,8 @@ class Panel(object):
         os.system("python /incam/server/site_data/scripts/sh_script/add_all_process_barcode/add_all_process_barcode.py")
 
         # --保存料号
-        self.GEN.COM('save_job,job=%s,override=no' % self.JOB)
+        if not cam_director:            
+            self.GEN.COM('save_job,job=%s,override=no' % self.JOB)
         # --因为考虑到socket运行模式,向上抛出异常，供上一级捕获
         raise SystemExit
     
@@ -6488,18 +6525,18 @@ class Panel(object):
                     side_word = 's'
                 bdlayer = 'bd-%s%s' % (regex_obj.group(1), side_word)
                 inn_layer = '%s.inn' % bdlayer
-                self.addLayer(bdlayer, ins_layer='drl', location='after')
+                # self.addLayer(bdlayer, ins_layer='drl', location='after')
                 self.addLayer(inn_layer, ins_layer='drl', location='after')
             elif layer == "TOP面控深盲孔":
                 self.addLayer('cdc.inn', ins_layer='cdc', location='after', del_exists=True)
             elif layer == "BOTTOM面控深盲孔":
                 self.addLayer('cds.inn', ins_layer='cds', location='after', del_exists=True)
             elif layer == "TOP面背钻":
-                self.addLayer('bdc', ins_layer='drl', location='after', context='board')
-                self.addLayer('bdc.inn', ins_layer='bdc', location='after', del_exists=True)
+                # self.addLayer('bdc', ins_layer='drl', location='after', context='board')
+                self.addLayer('bdc.inn', ins_layer='drl', location='after', del_exists=True)
             elif layer == "BOTTOM面背钻":
-                self.addLayer('bds', ins_layer='drl', location='after', context='board')
-                self.addLayer('bds.inn', ins_layer='bds', location='after', del_exists=True)
+                # self.addLayer('bds', ins_layer='drl', location='after', context='board')
+                self.addLayer('bds.inn', ins_layer='drl', location='after', del_exists=True)
 
         for sz_hash in burry_sz_dict:
             self.addLayer(sz_hash.sz_layer, ins_layer=sz_hash.mach_drill, location='after')
@@ -6570,7 +6607,7 @@ class Panel(object):
 
         if self.parm.RESIN_PLUG == 'yes':
             self.addLayer(layer='sz.lp', ins_layer=thorugh_drl, location='after')
-            self.addLayer(layer='sz...dq', ins_layer='sz.lp', location='after')
+            self.addLayer(layer='sz.dq', ins_layer='sz.lp', location='after')
         else:
             # === TODO 树脂塞孔时，导气的处理 ===
             info = self.GEN.DO_INFO('-t layer -e %s/panel/%s -d EXISTS' % (self.JOB, 'sz.lp'))
@@ -6937,6 +6974,7 @@ class Panel(object):
         """
         # --20200908李家兴依据story-view-1682添加
         # --将锣边上以及锣边外的融合铆钉孔,move到其它层
+
         tmp_content = self.JOB[6]
         lam_rout = self.parm.lam_rout
         profile_xmax = self.parm.profile_xmax
@@ -7027,14 +7065,27 @@ class Panel(object):
 
             self.GEN.COM("affected_layer,name=%s,mode=single,affected=no" % through_drl)
             self.GEN.COM("affected_layer,name=out_rout,mode=single,affected=yes")
-            ref_layers = '\;'.join(rout_list)
-            self.GEN.COM("sel_ref_feat,layers=%s,use=filter,mode=touch,pads_as=shape,f_types=line\;arc,"
-                         "polarity=positive\;negative,include_syms=,exclude_syms=" % ref_layers)
-            count = self.GEN.GET_SELECT_COUNT()
-            if count > 0:
-                # --接触到锣边的move到touch_rout
-                self.GEN.COM("sel_move_other,target_layer=touch_rout,invert=no,dx=0,dy=0,size=0,x_anchor=0,"
-                             "y_anchor=0,rotation=0,mirror=none")
+            # DA8636PET92A1 层此位置报错,ref层太多导致报内存错误，修改成循环模式 20250515 by ynh
+            if 'da8636pet92' in jobname:
+                for ref_lay in rout_list:
+                    self.GEN.COM("sel_clear_feat")
+                    self.GEN.COM("sel_ref_feat,layers=%s,use=filter,mode=touch,pads_as=shape,f_types=line\;arc,"
+                                 "polarity=positive\;negative,include_syms=,exclude_syms=" % ref_lay)
+                    count = self.GEN.GET_SELECT_COUNT()
+                    if count > 0:
+                        # --接触到锣边的move到touch_rout
+                        self.GEN.COM("sel_move_other,target_layer=touch_rout,invert=no,dx=0,dy=0,size=0,x_anchor=0,"
+                                     "y_anchor=0,rotation=0,mirror=none")
+            else:
+                ref_layers = '\;'.join(rout_list)
+                self.GEN.COM("sel_ref_feat,layers=%s,use=filter,mode=touch,pads_as=shape,f_types=line\;arc,"
+                             "polarity=positive\;negative,include_syms=,exclude_syms=" % ref_layers)
+                count = self.GEN.GET_SELECT_COUNT()
+                if count > 0:
+                    # --接触到锣边的move到touch_rout
+                    self.GEN.COM("sel_move_other,target_layer=touch_rout,invert=no,dx=0,dy=0,size=0,x_anchor=0,"
+                                 "y_anchor=0,rotation=0,mirror=none")
+
             # --在锣边范围内的没有touch锣边的孔move回drl
             self.GEN.COM("filter_area_strt")
             self.GEN.COM("filter_area_xy,x=%s,y=%s" % (rout_x1, rout_y1))
@@ -8958,9 +9009,9 @@ class STATIC_SYM(object):
                     # --防焊塞孔方式为不塞孔、树脂塞孔时,lp层已经被删除，此处加上限制条件防止报错
                     self.GEN.COM('affected_layer,name=sz.lp,mode=single,affected=yes')
             elif layer_type == '树脂导气':
-                if self.GEN.LAYER_EXISTS('sz...dq', job=self.JOB, step='panel') == 'yes':
+                if self.GEN.LAYER_EXISTS('sz.dq', job=self.JOB, step='panel') == 'yes':
                     # --防焊塞孔方式为不塞孔、树脂塞孔时,lp层已经被删除，此处加上限制条件防止报错
-                    self.GEN.COM('affected_layer,name=sz...dq,mode=single,affected=yes')
+                    self.GEN.COM('affected_layer,name=sz.dq,mode=single,affected=yes')
             elif layer_type == 'inn':
                 self.GEN.COM('affected_layer,name=inn,mode=single,affected=yes')
             elif layer_type == '埋孔':
@@ -8987,7 +9038,7 @@ class STATIC_SYM(object):
                     Blind_obj = Blind_Reg.match(layer)
                     if Blind_obj:
                         # --考虑到两次埋孔，所以加了个index,坐标顺序是按blind_burry_list的顺序压入数组的，不担心会错乱
-                        dq_layer = 'sz' + '-'.join(Blind_obj.groups()) + '...dq'
+                        dq_layer = 'sz' + '-'.join(Blind_obj.groups()) + '.dq'
                         if self.GEN.LAYER_EXISTS(dq_layer, job=self.JOB, step='panel') == 'yes':
                             self.GEN.COM('affected_layer,name=%s,mode=single,affected=yes' % dq_layer)
                             sub_loop[i].append(dq_layer)
@@ -12077,8 +12128,11 @@ class OUT_copper(object):
         self.GEN.DELETE_LAYER('sr_area_dummy')
         self.GEN.CREATE_LAYER('create_copper')
         self.GEN.DELETE_LAYER('flat_copper')
-        step_list = ['edit', 'edit1', 'edit+flip', 'edit1+flip', 'set', 'set1', 'zk']
+        #20250402 --加入set-d-coupon by ynh
+        step_list = ['edit', 'edit1', 'edit+flip', 'edit1+flip', 'set', 'set1', 'zk', 'set-d-coupon']
         for step in step_list:
+            if self.GEN.STEP_EXISTS(step=step) == 'no':
+                continue
             self.GEN.OPEN_STEP(step, job=self.JOB)
             self.GEN.CLEAR_LAYER()
             self.GEN.COM('units,type=mm')
@@ -13216,12 +13270,22 @@ class ETCH_copper(object):
             self.GEN.DELETE_LAYER('clip_copper')
             return
         self.GEN.COM('fill_params,type=solid,origin_type=datum,solid_type=surface')
-        # V2.09 铺铜至单元0.254-->0
-        self.GEN.COM("sr_fill,polarity=positive,step_margin_x=0,step_margin_y=0,step_max_dist_x=2540,"
+        # 碱性蚀刻和酸性蚀刻铺铜样式不一样
+        figer_dp_positive = self.parm.figer_dp_positive
+        if figer_dp_positive == 'yes':
+            # 铺进距离最后一次锣边4MM
+            dist_x = (self.parm.panel_x - self.parm.rout_x) / 2 + 4
+            dist_y = (self.parm.panel_y - self.parm.rout_y) / 2 + 4
+            self.GEN.COM("sr_fill,polarity=positive,step_margin_x=0,step_margin_y=0,step_max_dist_x={0},"
+                         "step_max_dist_y={1},sr_margin_x=0,sr_margin_y=0,sr_max_dist_x=0,sr_max_dist_y=0,"
+                         "nest_sr=no,consider_feat=no,consider_drill=no,consider_rout=no,dest=affected_layers,attributes=no".format(dist_x, dist_y))
+        else:
+            # V2.09 铺铜至单元0.254-->0
+            self.GEN.COM("sr_fill,polarity=positive,step_margin_x=0,step_margin_y=0,step_max_dist_x=2540,"
                      "step_max_dist_y=2540,sr_margin_x=0,sr_margin_y=0,sr_max_dist_x=0,sr_max_dist_y=0,"
                      "nest_sr=no,consider_feat=no,consider_drill=no,consider_rout=no,dest=affected_layers,attributes=no")
-        self.GEN.COM("sel_resize,size=-381,corner_ctl=no")
-        self.GEN.COM("sel_resize,size=381,corner_ctl=no")
+            self.GEN.COM("sel_resize,size=-381,corner_ctl=no")
+            self.GEN.COM("sel_resize,size=381,corner_ctl=no")
         self.GEN.CLEAR_LAYER()
         # --利用前面外层铺铜生成的clip_copper层别
         goldName = self.JOB[6:8]
@@ -16170,7 +16234,13 @@ class text_mach_number(DYNAMIC_SYM):
                     if self.GEN.LAYER_EXISTS(lay, job=self.JOB, step="panel") == "yes":
                         add_bd_2nd_layers.append(lay)
 
+            for layer in  bd_line.drl_names:
+                if self.GEN.LAYER_EXISTS(layer, job=self.JOB, step="panel") == "yes":
+                    add_bd_2nd_layers.append(layer)                
+
         add_layers = add_tmlayers + add_bd_2nd_layers
+        #if top.getUser() == "84310":
+            #top.PAUSE(str(add_bd_2nd_layers))
         for lay_mach in add_layers:
             if text_angle == 0:
                 if lay_mach in add_tmlayers:
@@ -16272,8 +16342,24 @@ class text_mach_number(DYNAMIC_SYM):
                                                   y_size=3.7846,
                                                   w_factor=1.4829396009, angle=text_angle, fontname='canned_57',
                                                   attribute=attribute)
+            if lay_mach in add_bd_2nd_layers:
+                for bd_lay in self.parm.drill_array:
+                    if re.match("[cb][bds]\d+-\d+", bd_lay):
+                        if bd_lay.split("-")[0] +"-" in lay_mach:                            
+                            info[bd_lay] = self.convert_to_dict(x_list=[add_x], y_list=[add_y], text=add_text, x_size=2.7178,
+                                                                y_size=3.7846,
+                                                                w_factor=1.4829396009, angle=text_angle, fontname='canned_57',
+                                                                attribute=attribute)                            
 
         return info
+    
+    #def change_symbol(self):
+        #"""
+        #测试
+        #:return:
+        #:rtype:
+        #"""
+        #self.GEN.PAUSE("CHECK!!!!!!!!!!!!!!!")
 
 # --钻孔
 class text_drl_hole(DYNAMIC_SYM):
@@ -17538,12 +17624,15 @@ class rh_mdk(STATIC_SYM):
             stack_data = get_StackupData(job_sql)
             for dict in stack_data:
                 mrp_name = str(dict['MRP_NAME'])
-                if '-' in mrp_name:
-                    top_layer = 'l' + str(int(mrp_name.split('-')[1][-4:][:2]))
-                    bot_layer = 'l' + str(int(mrp_name.split('-')[1][-4:][-2:]))
-                else:
-                    top_layer = 'l1'
-                    bot_layer = 'l{0}'.format(int(self.JOB[4:6]))
+                try:                    
+                    if '-' in mrp_name:
+                        top_layer = 'l' + str(int(mrp_name.split('-')[1][-4:][:2]))
+                        bot_layer = 'l' + str(int(mrp_name.split('-')[1][-4:][-2:]))
+                    else:
+                        top_layer = 'l1'
+                        bot_layer = 'l{0}'.format(int(self.JOB[4:6]))
+                except Exception as e:
+                    continue
                 cu_list = []
                 for fill_hash in fill_array:
                     copper_thick = fill_hash.copper_thick
@@ -20486,7 +20575,9 @@ class ECC_200(DYNAMIC_SYM):
             return info
         sr_xmin = self.parm.sr_xmin
         sr_xmax = self.parm.sr_xmax
+        sr_ymax = self.parm.sr_ymax
         profile_ymax = self.parm.profile_ymax
+        profile_xmax = self.parm.profile_xmax
         if rj_y_array[0] < profile_ymax * 0.5:
             # --HDI料号
             index = int(len(rj_y_array) / 2)
@@ -20501,7 +20592,7 @@ class ECC_200(DYNAMIC_SYM):
         x_R_org = sr_xmax + 2.5 + lenth / 2
         y_R_org = rj_y_array[index] + 65.0 + 65.0 / 2 + 1.5
 
-        # --可移动范围定义
+        # --可移动范围定义 长边右上角
         area_ymin = rj_y_array[index] + 65.0 + 15.5
         area_ymax = rj_y_array[index] + 65.0 * 2 - 15.5
         # --获取长边移动优化后的坐标,仅上下移动
@@ -20511,6 +20602,39 @@ class ECC_200(DYNAMIC_SYM):
         # --仅在panel_map层添加sym
         # info['panel_map'] = self.convert_to_dict(x_list=[x_L,x_R], y_list=[y_L,y_R], symbol=sym, polarity='positive')
         info['panel_map'] = self.convert_to_dict(x_list=[x_R], y_list=[y_R], symbol=sym, polarity='positive')
+        #新增短边右上角 20250326 by lyh http://192.168.2.120:82/zentao/story-view-8577.html        
+        x_u_org = sr_xmax - 65.0
+        y_u_org = sr_ymax + 2.5 + lenth / 2
+        area_xmin = sr_xmax * 0.5
+        area_xmax = sr_xmax
+        x_u, y_u = self.optimize_coord(sym, x=x_u_org, y=y_u_org, area_xmin=area_xmin, area_xmax=area_xmax)
+        
+        ####
+        area_xmax = profile_xmax - 20 
+        area_xmin = sr_xmax - 100
+        area_ymax = profile_ymax - 5
+        area_ymin = sr_ymax + 2.5 + lenth / 2       
+            
+        fx = "X"
+        step_x = 1
+        step_y = 1
+        # neg_symbolname = "rect7500x30500"
+        add_x = sr_xmax - 65.0
+        add_y = sr_ymax + 2.5 + lenth / 2        
+        
+        rect_area = self.optimize_coord_find_area_rect(sym, x=add_x, y=add_y, area_xmin=area_xmin,
+                                                       area_xmax=area_xmax,area_ymin=area_ymin, area_ymax=area_ymax,
+                                                       move_fx=fx, move_x_step=step_x, move_y_step=step_y, 
+                                                       return_rect="yes",include_rect=None,step=None, 
+                                                       four_corner2ll="no",to_feature_size=0.5)
+        if rect_area:
+            # 取出最小y
+            all_y = [y for x, y, _ in rect_area]
+            find_xy = sorted([(x, y) for x, y, _ in rect_area if y == min(all_y)])
+            x_u, y_u = find_xy[0]
+            # self.GEN.PAUSE(str([x_u, y_u]))
+        
+        self.x_u, self.y_u = x_u - 3.5, y_u - 3.5
 
         # self.x_L,self.y_L = x_L-3.5,y_L-3.5
         self.x_R, self.y_R = x_R - 3.5, y_R - 3.5
@@ -20564,6 +20688,10 @@ class ECC_200(DYNAMIC_SYM):
                                                                 y_list=[self.y_R + 3.5],
                                                                 symbol='rect11312.5x11312.5',
                                                                 polarity='negative')
+                        info[layer_name].extend(self.convert_to_dict(x_list=[self.x_u + 3.5],
+                                                                y_list=[self.y_u + 3.5],
+                                                                symbol='rect11312.5x11312.5',
+                                                                polarity='negative'))   
                     elif layer_side == "正":
                         info[layer_name] = self.convert_to_dict(x_list=[self.x_R + 3.5],
                                                                 y_list=[self.y_R + 3.5],
@@ -20574,6 +20702,15 @@ class ECC_200(DYNAMIC_SYM):
                                                  angle=0, mirror='no', type='barcode', bar_type='ECC-200',
                                                  matrix='Minimal', bar_add_string='no',
                                                  bar_height=7))
+                        info[layer_name].extend(self.convert_to_dict(x_list=[self.x_u + 3.5],
+                                                                y_list=[self.y_u + 3.5],
+                                                                symbol='rect11312.5x11312.5',
+                                                                polarity='negative'))
+                        info[layer_name].extend(
+                            self.convert_to_dict(x_list=[self.x_u], y_list=[self.y_u], text=upper_text,
+                                                 angle=0, mirror='no', type='barcode', bar_type='ECC-200',
+                                                 matrix='Minimal', bar_add_string='no',
+                                                 bar_height=7)) 
 
         self.add_symbol(info)
 
@@ -21325,13 +21462,14 @@ class hdi_tag_symbol(STATIC_SYM):
                                                                   symbol='r3175',
                                                                   polarity='positive')
 
-        info['蚀刻引线'] = self.convert_to_dict(x_list=etch_dw_x , y_list=etch_dw_y, symbol='r0',
-                                            attribute='.fiducial_name,text=317.reg')
-        info['蚀刻引线c'] = self.convert_to_dict(x_list=etch_dw_x, y_list=etch_dw_y, symbol='sh-dwtop',
+        figer_dp_positive = self.parm.figer_dp_positive
+        if figer_dp_positive <> 'yes':
+            info['蚀刻引线'] = self.convert_to_dict(x_list=etch_dw_x, y_list=etch_dw_y, symbol='r0',
+                                                attribute='.fiducial_name,text=317.reg')
+            info['蚀刻引线c'] = self.convert_to_dict(x_list=etch_dw_x, y_list=etch_dw_y, symbol='sh-dwtop',
                                              polarity='negative')
-        info['蚀刻引线s'] = self.convert_to_dict(x_list=etch_dw_x, y_list=etch_dw_y, symbol='sh-dwbot',
+            info['蚀刻引线s'] = self.convert_to_dict(x_list=etch_dw_x, y_list=etch_dw_y, symbol='sh-dwbot',
                                              polarity='negative')
-
 
         # if etch_lyr_symbol:
         #     # === V2.03 周涌要求增加 需求3793 ===
@@ -21366,6 +21504,7 @@ class back_drill_tag(STATIC_SYM):
         """
         info = {}
         bd_info = self.parm.bd_info
+        self.dic_combine_bd_layers = {}
         if len(bd_info) == 0:
             return info
         drill_type_yn = self.parm.drill_type_yn
@@ -21393,10 +21532,11 @@ class back_drill_tag(STATIC_SYM):
                     start_word = 'cb'
                 
                 lay = "%s%s%s" % (start_word, tail1_word, tail2_word)
-                if self.GEN.LAYER_EXISTS(lay, job=self.JOB, step="panel") == "yes":                    
-                    bd_layers.append(lay)
+                # if self.GEN.LAYER_EXISTS(lay, job=self.JOB, step="panel") == "yes":                    
+                bd_layers.append(lay)
                 
-            # if self.JOB.split("-")[0].upper() == "H47508GB544C1":
+            #if "-lyh" in self.JOB:
+                #self.GEN.PAUSE(str(["------------>", list(set(bd_line.drill_type)), bd_layers, set(bd_line.TARGET_X1)]))
             # 同一开始层有多个背钻 且靶距不一样的 此处循环下
             if len(set(bd_line.TARGET_X1)) > 1 or not bd_layers:                
                 bd_layers = bd_line.drl_names
@@ -21409,14 +21549,15 @@ class back_drill_tag(STATIC_SYM):
                 if re.match("[bc][cbds][1-9][1-9]?-[1-9][1-9]?", lay):
                     continue
                 
+                self.dic_combine_bd_layers[lay] = bd_line.drl_names
                 # 检测背钻层是否存在 不存在的直接创建 20221220  by lyh
                 bd_innlayer = lay + ".inn"
                 
-                if self.GEN.LAYER_EXISTS(lay, job=self.JOB, step="panel") == "no":
-                    self.GEN.CREATE_LAYER(lay, ins_lay='drl', context='board', add_type='drill')
+                #if self.GEN.LAYER_EXISTS(lay, job=self.JOB, step="panel") == "no":
+                    #self.GEN.CREATE_LAYER(lay, ins_lay='drl', context='board', add_type='drill')
                     
                 if self.GEN.LAYER_EXISTS(bd_innlayer, job=self.JOB, step="panel") == "no":
-                    self.GEN.CREATE_LAYER(bd_innlayer, ins_lay=lay, context='board', add_type='drill')                
+                    self.GEN.CREATE_LAYER(bd_innlayer, ins_lay="drl", context='board', add_type='drill')                
                 
                 bd_erf_name = bd_line.erp_drill_name
                 inn_size = ''
@@ -21584,6 +21725,34 @@ class back_drill_tag(STATIC_SYM):
                     info['档点'].extend(self.convert_to_dict(x_list=bd_tag_x_list, y_list=bd_tag_y_list, symbol='s5182', polarity='positive'))            
 
         return info
+    
+    #def change_symbol(self):
+        #"""
+        #需要将拆分的背钻板边工具孔加上
+        #同时删除合并层的背钻层 20250528 by lyh
+        #:return:
+        #:rtype:
+        #"""        
+        #jobname = self.JOB
+        #stepname = "panel"
+        #job = gClasses.Job(jobname)
+        #step = gClasses.Step(job, stepname)
+        #step.open()
+        #step.COM("units,type=mm")
+        #step.PAUSE("--------------------------------->")
+        #copy_layers = []
+        #for key, value in self.dic_combine_bd_layers.iteritems():
+            #step.clearAll()
+            #step.affect(key)
+            #for layer in value:
+                #if key != layer:
+                    #if layer not in copy_layers:                        
+                        #step.copySel(layer)
+                        #copy_layers.append(layer)
+        
+        #step.clearAll()
+        #for key, value in self.dic_combine_bd_layers.iteritems():
+            #step.removeLayer(key)    
     
 
 class add_bd_dw_holes(DYNAMIC_SYM):
@@ -21929,8 +22098,8 @@ class hdi_dld_new(DYNAMIC_SYM):
                                     layer_from,layer_to, layer_mid,skip_via_change =self.check_only_skip_via_layer(layer, index_start,
                                                                                                                       index_end, layer_from,
                                                                                                                       layer_to, layer_mid, flag)
-                            if "-lyh" in job.name:
-                                job.PAUSE(str([layer, reverse_laser_drill, layer_from,layer_to, layer_mid,skip_via_change]))
+                            #if "-lyh" in job.name:
+                                #job.PAUSE(str([layer, reverse_laser_drill, layer_from,layer_to, layer_mid,skip_via_change]))
                     
                     # 按对称的层数相等来分组
                     if min([index_start, index_end]) > half_layer_num:
@@ -22437,8 +22606,8 @@ class hdi_dld(DYNAMIC_SYM):
                                     layer_from,layer_to, layer_mid,skip_via_change =self.check_only_skip_via_layer(layer, index_start,
                                                                                                                       index_end, layer_from,
                                                                                                                       layer_to, layer_mid, flag)
-                            if "-lyh" in job.name:
-                                job.PAUSE(str([layer, reverse_laser_drill, layer_from,layer_to, layer_mid,skip_via_change]))
+                            #if "-lyh" in job.name:
+                                #job.PAUSE(str([layer, reverse_laser_drill, layer_from,layer_to, layer_mid,skip_via_change]))
                                 
                     dld_from_list.append(layer_from)
                     dld_to_list.append(layer_to)
@@ -23050,8 +23219,8 @@ class hdi_v5_symbol(DYNAMIC_SYM):
                                         # break
                                     if seg_index and pp_thick == 0 and array_seg_index[0] - stackup_info.STACKUP_SEG_INDEX == 1:
                                         # 例如D51910PBBE7A1 s9-8
-                                        if "-lyh" in self.JOB:
-                                            job.PAUSE(str([layer, pp_thick, stackup_info.SEGMENT_TYPE_T, seg_index, stackup_info.STACKUP_SEG_INDEX] ))                                                
+                                        #if "-lyh" in self.JOB:
+                                            #job.PAUSE(str([layer, pp_thick, stackup_info.SEGMENT_TYPE_T, seg_index, stackup_info.STACKUP_SEG_INDEX] ))                                                
                                         if stackup_info.SEGMENT_TYPE_T == "Core":
                                             pp_thick = stackup_info.CUST_REQ_THICKNESS_
                                             
@@ -23066,8 +23235,8 @@ class hdi_v5_symbol(DYNAMIC_SYM):
 
                                 # break
                                         
-                                if "-lyh" in self.JOB:
-                                    job.PAUSE(str([layer, layer_copper_thick[0], pp_thick, next_n_1_layer, next_n_2_layer, laser_depth]))
+                                #if "-lyh" in self.JOB:
+                                    #job.PAUSE(str([layer, layer_copper_thick[0], pp_thick, next_n_1_layer, next_n_2_layer, laser_depth]))
                                     
                                 if not pp_thick:
                                     warn_content = "{0}层五代靶添加，获取pp厚度异常，请反馈程序工程师检查！"
@@ -23187,8 +23356,8 @@ class hdi_v5_symbol(DYNAMIC_SYM):
                                         # break
                                     if seg_index and pp_thick == 0 and stackup_info.STACKUP_SEG_INDEX - array_seg_index[0] == 1:
                                         # 例如D51910PBBE7A1 s2-3的情况
-                                        if "-lyh" in self.JOB:
-                                            job.PAUSE(str([layer, pp_thick, stackup_info.SEGMENT_TYPE_T, seg_index, stackup_info.STACKUP_SEG_INDEX] ))
+                                        #if "-lyh" in self.JOB:
+                                            #job.PAUSE(str([layer, pp_thick, stackup_info.SEGMENT_TYPE_T, seg_index, stackup_info.STACKUP_SEG_INDEX] ))
                                         if stackup_info.SEGMENT_TYPE_T == "Core":
                                             pp_thick = stackup_info.CUST_REQ_THICKNESS_
                                         
@@ -23202,8 +23371,8 @@ class hdi_v5_symbol(DYNAMIC_SYM):
                                     if seg_index and next_n_2_layer in [mrp_fromlay, mrp_tolay] :
                                         break
                                                                             
-                                if "-lyh" in self.JOB:
-                                    job.PAUSE(str([layer, layer_copper_thick[0], pp_thick, next_n_1_layer, next_n_2_layer, laser_depth]))
+                                #if "-lyh" in self.JOB:
+                                    #job.PAUSE(str([layer, layer_copper_thick[0], pp_thick, next_n_1_layer, next_n_2_layer, laser_depth]))
                                     
                                 if not pp_thick:
                                     warn_content = "{0}层五代靶添加，获取pp厚度异常，请反馈程序工程师检查！"
@@ -23366,6 +23535,9 @@ class hdi_v5_symbol(DYNAMIC_SYM):
         :return:
         :rtype:
         """
+        #翟鸣通知 镭射五代靶直接按symbol添加 无需打散 20250617 by lyh
+        return True
+    
         blind_list = self.parm.blind_list
         if len(blind_list) == 0:
             # --没有盲孔不需要添加
@@ -23651,6 +23823,7 @@ class hdi_slice(DYNAMIC_SYM):
         put_copper_out = self.parm.put_copper_out
         # 添加切片孔.
         info = {}
+        return info  # 取消添加切片孔 http://192.168.2.120:82/zentao/story-view-8473.html by ynh
         if split_pth != 'Null' and split_via != 'Null':
             pass
         else:
@@ -25862,13 +26035,31 @@ class pin_donut(STATIC_SYM):
         if add_eagle_panel == "否":    
             # self.GEN.PAUSE(str([self.parm.drl, self.parm.drill_array]))
             for bd_lay in self.parm.drill_array:
-                if re.match("^bd-?[cs]$|^cd-?[cs]$|^cs-?[cs]$|^cb-?[cs]$", bd_lay) or \
-                   re.match("^[bc]d[cs]-?[1-9]$|^[bc]d[cs]-?[1-9]$", bd_lay) or \
-                   re.match("^[bc]d-[1-9][cs][2-9]?$|^[bc]d-[1-9][cs][2-9]?$", bd_lay) or \
-                   re.match("^c[bs][cs]-?[1-9]$|^c[bs][cs]-?[1-9]$", bd_lay) or \
-                   re.match("^c[bs]-[1-9][cs][2-9]?$|^c[bs]-[1-9][cs][2-9]?$", bd_lay):
-                        info[bd_lay] = self.convert_to_dict(x_list=pin_x_array[:3]+[pin_x_array[-1]],
-                                                            y_list=pin_y_array[:3]+[pin_y_array[-1]], symbol='r1998')
+                #if re.match("^bd-?[cs]$|^cd-?[cs]$|^cs-?[cs]$|^cb-?[cs]$", bd_lay) or \
+                   #re.match("^[bc]d[cs]-?[1-9]$|^[bc]d[cs]-?[1-9]$", bd_lay) or \
+                   #re.match("^[bc]d-[1-9][cs][2-9]?$|^[bc]d-[1-9][cs][2-9]?$", bd_lay) or \
+                   #re.match("^c[bs][cs]-?[1-9]$|^c[bs][cs]-?[1-9]$", bd_lay) or \
+                   #re.match("^c[bs]-[1-9][cs][2-9]?$|^c[bs]-[1-9][cs][2-9]?$", bd_lay):
+                if re.match("[cb][bds]\d+-\d+", bd_lay):
+                    res = re.findall("bd(\d+)-(\d+)", bd_lay)
+                    if res:
+                        top_index , bot_index = res[0]
+                        if int(top_index) == 1 or int(bot_index) == job_signal_numbers:
+                            # 外层                        
+                            info[bd_lay] = self.convert_to_dict(x_list=pin_x_array[:3]+[pin_x_array[-1]],
+                                                                y_list=pin_y_array[:3]+[pin_y_array[-1]], symbol='r1998')
+                        else:
+                            fd_bd_x = []
+                            bd_bd_y = []
+                            # 有多次埋孔背钻的 按埋孔的顺序索引匹配
+                            for i, mai_layer in enumerate(burry_list):
+                                if "b" + str(top_index) in mai_layer or "-" + str(top_index) in mai_layer:
+                                    fd_bd_x = [pin_x_burry[i]]
+                                    bd_bd_y = [pin_y_burry[i]]
+                                    break
+                                    
+                            info[bd_lay] = self.convert_to_dict(x_list=pin_x_array[:3]+fd_bd_x,
+                                                                y_list=pin_y_array[:3]+bd_bd_y, symbol='r1998')                            
                     
         # --档点层增加与孔等大的档点，防止油墨入孔
         # info['档点'].extend (self.convert_to_dict (x_list=pin_x_array, y_list=pin_y_array, symbol=sym_array_md_addition))
@@ -26156,9 +26347,12 @@ class out_ccd(DYNAMIC_SYM):
                                                     attribute='.fiducial_name,text=317.reg'))
             info['外层s'].extend(self.convert_to_dict(x_list=out_ccdx_array, y_list=out_ccdy_array, symbol='r0',
                                                     attribute='.fiducial_name,text=317.reg'))
-            info['蚀刻引线c']=self.convert_to_dict(x_list=out_ccdx_array, y_list=out_ccdy_array, symbol='r0',
+
+            figer_dp_positive = self.parm.figer_dp_positive
+            if figer_dp_positive <> 'yes':
+                info['蚀刻引线c']=self.convert_to_dict(x_list=out_ccdx_array, y_list=out_ccdy_array, symbol='r0',
                                                       attribute='.fiducial_name,text=317.reg')
-            info['蚀刻引线s']=self.convert_to_dict(x_list=out_ccdx_array, y_list=out_ccdy_array, symbol='r0',
+                info['蚀刻引线s']=self.convert_to_dict(x_list=out_ccdx_array, y_list=out_ccdy_array, symbol='r0',
                                                       attribute='.fiducial_name,text=317.reg')
 
         if add_first_plant == "no":
@@ -26694,17 +26888,25 @@ class sh_dwsd(DYNAMIC_SYM):
 
         # 碱性蚀刻周涌要求蚀刻etch-c,etch-s层增加4颗靶，靶symbol为C面（sh-dwtop),反面（sh-dwbot)-dwsig2014位置
         # http://192.168.2.120:82/zentao/story-view-6782.html
+
         figer_dp_positive = self.parm.figer_dp_positive
-        silk_dwx_array_etc = [silk_dw_x1, silk_dw_x1, silk_dw_x2, silk_dw_fdx2]
+        # silk_dwx_array_etc = [silk_dw_x1, silk_dw_x1, silk_dw_x2, silk_dw_fdx2]
+        # silk_dwy_array_etc = [silk_dw_ymin, silk_dw_ymax, silk_dw_ymin, silk_dw_ymax]
+        # silk_dwx_array_etc = [silk_dw_xmax, silk_dw_xmin, silk_dw_xmin, silk_dw_xmax]  备用靶
+
         silk_dwy_array_etc = [silk_dw_ymin, silk_dw_ymax, silk_dw_ymin, silk_dw_ymax]
         if figer_dp_positive == 'yes':
-            for k_lay, v_sym in {'蚀刻引线c': 'sh-dwtop', '蚀刻引线s': 'sh-dwbot'}.items():
-                if info.has_key(k_lay):
-                    info[k_lay].extend(
-                        self.convert_to_dict(x_list=silk_dwx_array_etc, y_list=silk_dwy_array_etc, symbol=v_sym, polarity='negative'))
+            for k_lay, v_sym in {'蚀刻引线c': 'sh-dwsig2014', '蚀刻引线s': 'sh-dwsig2014'}.items():
+                if k_lay == '蚀刻引线c':
+                    silk_dwx_array_etc = [silk_dw_x1, silk_dw_x1, silk_dw_x2, silk_dw_fdx2]
                 else:
-                    info[k_lay] = self.convert_to_dict(x_list=silk_dwx_array_etc, y_list=silk_dwy_array_etc,
-                                                       symbol=v_sym,polarity='negative')
+                    silk_dwx_array_etc = [silk_dw_x1, silk_dw_x1, silk_dw_x2, silk_dw_fdx3]
+                if info.has_key(k_lay):
+                    info[k_lay].extend(self.convert_to_dict(x_list=silk_dwx_array_etc, y_list=silk_dwy_array_etc, symbol=v_sym, polarity='positive'))
+                else:
+                    info[k_lay] = self.convert_to_dict(x_list=silk_dwx_array_etc, y_list=silk_dwy_array_etc,symbol=v_sym,polarity='positive')
+
+                info[k_lay].extend(self.convert_to_dict(x_list=silk_dwx_array_etc, y_list=silk_dwy_array_etc, symbol='r0',attribute='.fiducial_name,text=317.reg'))
 
         # --防焊加ccd间距
         dis_x2 = silk_dw_x2

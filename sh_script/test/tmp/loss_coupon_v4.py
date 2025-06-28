@@ -932,7 +932,8 @@ class VIA_process(object):
         """
         symbolList = self.GEN.DO_INFO(
             '-t layer -e %s/%s/%s -d SYMS_HIST -p symbol -o break_sr,  units=inch' % (self.JOB, 'edit', bd_layer))
-        if len(symbolList) > 0:
+        # if len(symbolList) > 0:
+        if symbolList.get('gSYMS_HISTsymbol'):
             return symbolList['gSYMS_HISTsymbol'][0]
         else:
             return 'r%s' % (self.parm.viaSize + 10)
@@ -2460,7 +2461,13 @@ class Loss(object):
                 if layer_id > self.layer_number/2:
                     stub_side = 'top'
                 else:
-                    stub_side = 'bottom'                
+                    stub_side = 'bottom'
+                    
+        if "S57512PB447A1" in self.JOB.upper():
+            if layer_id in [3, 5]:
+                stub_side = 'top'
+            if layer_id in [8, 10]:
+                stub_side = 'bottom'
 
         # --当为顶层或底层时，测试点就在对应层（重置上面的参数）
         if layer_id == 1:

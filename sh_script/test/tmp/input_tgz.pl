@@ -148,23 +148,22 @@ sub jobfilter {
 		push(@pp_data,$tmp);
 	}
 	my $client_no = uc($pp_data[0]);
-#    print('aaa', $client_no."\n");
+
 	if ( $sel_site eq hanzi("胜宏全套"))  {
 		$tgz_path = "/windows/33.tgz/${client_no}系列";
-#		print "$client_no";
-		if(! -d hanzi($tgz_path)){
+		if (! -d hanzi($tgz_path)){
 			$client_no = $pp_data[0];
 			$tgz_path = "/windows/33.tgz/${client_no}系列";
 		}
-		$windows_path = "//192.168.2.33/GC/设计课/外部资料/工程部外部取读资料/胜宏全套TGZ/$client_no\系列";
+		$windows_path = "//192.168.2.33/GC/设计课/外部资料/工程部外部取读资料/胜宏全套TGZ/${client_no}系列";
 #		chdir "$do_path";
 	} elsif ( $sel_site eq hanzi("临时")) {
-		$tgz_path = "/windows/33\.file/$client_no\系列";
-		$windows_path = "//192.168.2.57/临时文件夹/系列资料临时存放区/$client_no\系列";
+		$tgz_path = "/windows/33.file/${client_no}系列";
+		$windows_path = "//192.168.2.57/临时文件夹/系列资料临时存放区/${client_no}系列";
 #		chdir "$do_path";
 	} elsif ( $sel_site eq hanzi("HDI全套")) {
-		$tgz_path = "/windows/174\.tgz/$client_no\系列";
-		$windows_path = "//192.168.2.174/GCfiles/HDI全套tgz/$client_no\系列";
+		$tgz_path = "/windows/174.tgz/${client_no}系列";
+		$windows_path = "//192.168.2.174/GCfiles/HDI全套tgz/${client_no}系列";
 #		chdir "$do_path";
 	}
 	$tgz_path = decode('utf8',$tgz_path);

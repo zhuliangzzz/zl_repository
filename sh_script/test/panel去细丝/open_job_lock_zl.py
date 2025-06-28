@@ -27,7 +27,7 @@ import datetime
 import ast
 import re
 import copy
-from Packages import GetData
+# from Packages import GetData
 
 # --导入Package
 # --加载相对位置，以实现InCAM与Genesis共用
@@ -39,6 +39,7 @@ from messageBox import msgBox
 import genCOM_26 as genCOM
 import MySQL_DB
 import Oracle_DB
+import GetData
 
 
 GEN = genCOM.GEN_COM()

@@ -190,7 +190,7 @@ sub main
     map {$ulLayerWidget->insert("end", "$_");} @all_layers;    
 
     my $ul_symbol = '匹配失败，手动选择'; 
-    my ($sh_pattern) = $ul_mark_tmp =~ /SH(\d{0,2}) .*$/i;
+    my ($sh_pattern) = $ul_mark_tmp =~ /SH(\S*) .*$/i;
     $ul_symbol = "wz-ul-sh$sh_pattern" if ($ul_mark_tmp =~ /SH/i);
     $ulSymbolWidget = $ul_frm->BrowseEntry(-label => "", -font => 'SimSun 11', -bg => '#9BDBDB', -fg => 'black', -variable => \$ul_symbol, -width => 28, -state => 'readonly') -> pack(-padx => 5, -side => 'left');
     #map {$ulSymbolWidget->insert("end", "$_");} qw(wz-ul-sh wz-ul-sh1 wz-ul-sh2 wz-ul-sh3 wz-ul-sh4 wz-ul-sh5 wz-ul-sh6 wz-ul-sh7 wz-ul-sh8 wz-ul-sh9 wz-ul-sh10 wz-ul-sh11 wz-ul-sh12 wz-ul-sh13 wz-ul-sh14 wz-ul-sh15
@@ -613,7 +613,50 @@ sub ULAction
     my $ul_y_size = ${$ulYWdiget->cget(-text)};
     
     $mw->withdraw;
-    $f->COM("import_lib_item_to_job,src_category=symbols,src_profile=system,src_customer=,dst_names=$symbol");
+    # 20250627 zl 当前要加的ulsymbol在库中没有，则导入wz-ul-shxxxx 根据mi查询的ul修改这个wz-ul-shxxxx内容和命名
+    $f->COM("delete_unused_sym,job=$JOB");
+    my $symbol_library = "/incam/server/site_data/library/symbols";  # 替换成你的目标路径
+    opendir(my $dh, $symbol_library) or die "无法打开目录 '$symbol_library': $!";
+    # 读取所有条目，并筛选出目录（排除 . 和 ..）
+    my @dirs = grep {
+        -d "$symbol_library/$_" && !/^\.{1,2}$/
+    } readdir($dh);
+    closedir($dh);
+    # global library是否存在该symbol
+    my $has_symbol = (grep { $_ eq $symbol } @dirs) ? 0 : 1;
+    my $my_wz_ul = 'wz-ul-shxxxx';
+    if($has_symbol){
+       # 再判断当前料号中是否有这个symbol
+       $f->INFO(entity_type => 'job',
+             entity_path => "$JOB",
+             data_type => 'SYMBOLS_LIST');
+        my @symbol_list =  @{$f->{doinfo}{gSYMBOLS_LIST}};
+        unless(grep { $_ eq $symbol } @symbol_list){
+           my @part = split/wz-ul-sh/, $symbol;
+           my $change_text = $part[-1];
+           # 导入wz-ul-shxxxx进行changetext
+           $f->COM("import_lib_item_to_job,src_category=symbols,src_profile=system,src_customer=,dst_names=$my_wz_ul");
+           $f->COM("open_entity,job=$JOB,type=symbol,name=$my_wz_ul,iconic=no");
+           my $group_id = $f->{COMANS};
+           $f->AUX("set_group,group=$group_id");
+            $f->COM("filter_reset,filter_name=popup");
+            $f->COM("filter_set,filter_name=popup,update_popup=no,feat_types=text");
+            $f->COM("set_filter_text,filter_name=,text=XXXX");
+            $f->COM("filter_area_strt");
+            $f->COM("filter_area_end,layer=,filter_name=popup,operation=select,area_type=none,inside_area=no,intersect_area=no");
+            $f->COM("filter_reset,filter_name=popup");
+            $f->COM("get_select_count");
+            if ($f->{COMANS} ne '0'){
+                $f->COM("sel_change_txt,text=$change_text,x_size=-25.4,y_size=-25.4,w_factor=-1,polarity=no_change,angle=-1,mirror=no_change,fontname=simhei.ttf");
+            }
+            $f->VOF;
+            $f->COM("rename_library_item,category=symbols,profile=job,customer=,item_name=$my_wz_ul,new_item_name=$symbol");
+            $f->VON;
+            $f->COM("open_entity,job=$JOB,type=step,name=$STEP,iconic=no");
+        }
+    }else{
+        $f->COM("import_lib_item_to_job,src_category=symbols,src_profile=system,src_customer=,dst_names=$symbol");
+    }
     $f->COM("display_layer,name=$layer,display=yes,number=1");
     $f->COM("work_layer,name=$layer");
     $f->COM("units,type=inch");

@@ -223,8 +223,7 @@ class RemoveSlightSection(QtGui.QWidget, ui.Ui_Form):
     # TODO 更新外层检测是否去细丝的异常记录
     def update_removed_slight_section(self):
         # 查询异常记录
-        # sql = """select id from pdm_job_check_log_list where jobname = '{0}' and check_function_name = 'check_removed_slight_section' and check_process like '%异常%'"""
-        sql = """select id from pdm_job_check_log_list where jobname = '{0}' and check_function_name = 'check_removed_slight_section'"""
+        sql = """select id from pdm_job_check_log_list where jobname = '{0}' and check_function_name = 'check_removed_slight_section' and check_process like '%异常%'"""
         data_info = ikm_fun.PG.SELECT_DIC(ikm_fun.dbc_p, sql.format(jobname.lower()))
         if data_info:
             sql = """update pdm_job_check_log_list set check_log = 'success', check_process = '检测完成' where jobname = '%s' and check_function_name = 'check_removed_slight_section'""" % jobname

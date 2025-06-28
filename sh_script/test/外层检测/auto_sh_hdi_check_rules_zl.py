@@ -7792,7 +7792,7 @@ class auto_check_rule(object):
         ul_mark_tmp = data_info[0][0]
         if ul_mark_tmp.strip() == '不添加':
             return u"success 不添加ul symbol", None
-        res = re.search('SH(\d{0,2}).*$', ul_mark_tmp, re.I)
+        res = re.search('SH(\S*).*$', ul_mark_tmp, re.I)
         if not res:
             return u"流程中未匹配到ul symbol名", None
         sh_pattern = res.group(1)
@@ -7847,6 +7847,7 @@ class auto_check_rule(object):
             step.resetFilter()
             if step.Selected_count():
                 step.unaffectAll()
+                checked_ul.add(ul_symbol)
                 continue
             # 检测属性
             step.setAttrFilter_pro('.string', text='ul_*')
@@ -7854,6 +7855,7 @@ class auto_check_rule(object):
             step.selectAll()
             if step.Selected_count():
                 feats = step.INFO( '-t layer -e %s/%s/%s -d FEATURES -o select' % (jobname, step.name, check_layer))
+                print(feats)
                 del feats[0]
                 for feat in feats:
                     feat = feat.strip()

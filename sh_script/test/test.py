@@ -41,6 +41,7 @@ import time
 # md5 = hashlib.md5()
 # md5.update(b'10485537')
 # print(md5.hexdigest())
-print(time.time())
-print(time.strftime('%Y%m%d%H%M%S'))
+ul_mark_tmp = '斜兄+R SH-H26 94V-0'
+res = re.search('SH(\S*).*$', ul_mark_tmp, re.I)
+print(res.group(1))
 

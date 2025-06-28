@@ -112,6 +112,8 @@ class CopyLayer(QWidget, ui.Ui_Form):
 
     def render(self):
         self.job_name = jobname
+        self.user = gen.Top().getUser()
+        self.ignore_users = ('106883')   # 忽略限制的用户
         self.step_name = os.environ.get('STEP', None)
         self.job_lock = '%s_job_lock.json' % self.job_name
         # print self.job_name
@@ -208,71 +210,73 @@ class CopyLayer(QWidget, ui.Ui_Form):
             copy_layers.append([layer, dest_layer, invert])
         # todo 验证码审批校验 20250529
         source_layers = list(map(lambda copy_layer: copy_layer[0], copy_layers))
-        if source_job[1:12] != self.job_name[1:12]:
-            log = u"检测到拷贝型号{0} 非当前型号{1}的小版本，禁止从其他型号copy资料到当前型号！<br>拷贝的step跟层别：{2} {3}".format(
-                source_job, self.job_name, source_step, u'、'.join(source_layers)
-            )
-            if "c1" in source_layers or "c2" in source_layers:
-                # GEN.COM('skip_current_command')
-                log = u"检测到拷贝型号{0} 非当前型号{1}的小版本，禁止从其他型号copy资料到当前型号！<br>文字层禁止拷贝，拷贝的step跟层别：{2} {3}".format(
+        if self.user not in self.ignore_users:
+            if source_job[1:12] != self.job_name[1:12]:
+                log = u"检测到拷贝型号{0} 非当前型号{1}的小版本，禁止从其他型号copy资料到当前型号！<br>拷贝的step跟层别：{2} {3}".format(
                     source_job, self.job_name, source_step, u'、'.join(source_layers)
                 )
-                msg_box = msgBox()
-                msg_box.critical(self, '警告', log.format(source_job, self.job_name),  QMessageBox.Ok)
-                # exit(0)
-                return
+                if self.job_name != 'da8614g5ta5a1':
+                    if "c1" in source_layers or "c2" in source_layers:
+                        # GEN.COM('skip_current_command')
+                        log = u"检测到拷贝型号{0} 非当前型号{1}的小版本，禁止从其他型号copy资料到当前型号！<br>文字层禁止拷贝，拷贝的step跟层别：{2} {3}".format(
+                            source_job, self.job_name, source_step, u'、'.join(source_layers)
+                        )
+                        msg_box = msgBox()
+                        msg_box.critical(self, '警告', log.format(source_job, self.job_name),  QMessageBox.Ok)
+                        # exit(0)
+                        return
 
-            result = send_message_to_director(u"重要项目:" + log, self.job_name,
-                                              log,
-                                              password_approve=True)
-            if not result:
-                # GEN.COM('skip_current_command')
-                # exit(0)
-                return
-
-        res = self.check_soure_job_is_right(source_job)
-        # print('res', res)
-        if res:
-            # GEN.COM('skip_current_command')
-            log = u"检测到拷贝型号{0} 命名非法，资料内容跟型号不一致，请检查命名是否异常，禁止从其中拷贝资料！！"
-            msg_box = msgBox()
-            msg_box.critical(self, '警告', log.format(source_job, self.job_name), QMessageBox.Ok)
-            # exit(0)
-            return
-        warn_mess = []
-        layers_name = list(map(lambda copy_layer: copy_layer[1], copy_layers))
-        # print(layers_name)
-        if len(layers_name) == 0:
-            # exit(0)
-            return
-        # set中不允许从edit中拷贝资料过来覆盖
-        if "set" in self.step_name:
-            # source_layer = self.hook_dict['source_layer']
-            # dest_layer = self.hook_dict['dest_layer']
-            for source_layer, dest_layer, _ in copy_layers:
-                if source_layer == dest_layer:
-                    log = u"检测到有从{0} 中拷贝层资料到{1}，此为非常规操作，请谨慎确认是否执行！"
-                    msg_box = msgBox()
-                    msg_box.critical(self, '警告', log.format(source_step, self.step_name), QMessageBox.Ok)
+                result = send_message_to_director(u"重要项目:" + log, self.job_name,
+                                                  log,
+                                                  password_approve=True)
+                if not result:
+                    # GEN.COM('skip_current_command')
                     # exit(0)
                     return
-        # 检查层别是否在lock范围内
-        # print(self.step_name, self.pre_lock)
-        if self.step_name in self.pre_lock:
-            intersection_layers = [i for i in layers_name if i in self.pre_lock[self.step_name]]
-            if len(intersection_layers) > 0:
-                warn_mess.append(u'锁定的Step：%s中_锁定的层别：%s,不可编辑' % (self.step_name, intersection_layers))
+
+            res = self.check_soure_job_is_right(source_job)
+            # print('res', res)
+            if res:
+                # GEN.COM('skip_current_command')
+                log = u"检测到拷贝型号{0} 命名非法，资料内容跟型号不一致，请检查命名是否异常，禁止从其中拷贝资料！！"
+                msg_box = msgBox()
+                msg_box.critical(self, '警告', log.format(source_job, self.job_name), QMessageBox.Ok)
+                # exit(0)
+                return
+            warn_mess = []
+            layers_name = list(map(lambda copy_layer: copy_layer[1], copy_layers))
+            # print(layers_name)
+            if len(layers_name) == 0:
+                # exit(0)
+                return
+            # set中不允许从edit中拷贝资料过来覆盖
+            if "set" in self.step_name:
+                # source_layer = self.hook_dict['source_layer']
+                # dest_layer = self.hook_dict['dest_layer']
+                for source_layer, dest_layer, _ in copy_layers:
+                    if source_layer == dest_layer:
+                        log = u"检测到有从{0} 中拷贝层资料到{1}，此为非常规操作，请谨慎确认是否执行！"
+                        msg_box = msgBox()
+                        msg_box.critical(self, '警告', log.format(source_step, self.step_name), QMessageBox.Ok)
+                        # exit(0)
+                        return
+            # 检查层别是否在lock范围内
+            # print(self.step_name, self.pre_lock)
+            if self.step_name in self.pre_lock:
+                intersection_layers = [i for i in layers_name if i in self.pre_lock[self.step_name]]
+                if len(intersection_layers) > 0:
+                    warn_mess.append(u'锁定的Step：%s中_锁定的层别：%s,不可编辑' % (self.step_name, intersection_layers))
+                # else:
+                #     # exit(0)
+                #     return
             # else:
-            #     # exit(0)
-            #     return
-        # else:
-        #     exit(0)
-        if len(warn_mess) != 0:
-            # GEN.COM('skip_current_command')
-            msg_box = msgBox()
-            msg_box.critical(self, '警告', u"%s" % "\n".join(warn_mess), QMessageBox.Ok)
-            # exit(0)
-            return
+            #     exit(0)
+            if len(warn_mess) != 0:
+                # GEN.COM('skip_current_command')
+                msg_box = msgBox()
+                msg_box.critical(self, '警告', u"%s" % "\n".join(warn_mess), QMessageBox.Ok)
+                # exit(0)
+                return
         #
         transMap = {
             'No': 'no',

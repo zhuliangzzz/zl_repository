@@ -79,9 +79,6 @@ class AutoMakePressRout(object):
                     inn_layer = 'inn'
                 else:
                     pnl_rout = 'pnl_rout%s' % pnl_rout_n
-                print(pnl_rout)
-                if pnl_rout == 'pnl_rout1' and not step.isLayer(pnl_rout) and step.isLayer('pnl_rout'):  # 如果没有pnl_rout1 找pnl_rout
-                    pnl_rout = 'pnl_rout'
                 if step.isLayer(pnl_rout):
                     # print(pnl_rout, self.pnlrout_dic.get(pnl_rout))
                     if not inn_layer:
@@ -169,13 +166,6 @@ class AutoMakePressRout(object):
         tmp_file = 'c:/tmp/%s-rout-message' % self.jobname
         if os.path.exists(tmp_file):
             os.unlink(tmp_file)
-        # 20250623 写入文件C:/tmp/recode_hdi_output_name
-        try:
-            with open('C:/tmp/recode_hdi_output_name', 'w') as writer:
-                writer.write(jobname)
-        except IOError as e:
-            QtGui.QMessageBox.warning(None, u'文件写入异常', u'写入料号名到C:/tmp/recode_hdi_output_name失败\n(%s)！请检查！' % str(e))
-            sys.exit()
         for output_rout in output_routs:
             self.output(output_rout)
             step.removeLayer('_nc_%s_out_' % output_rout)
@@ -185,7 +175,7 @@ class AutoMakePressRout(object):
 
     def get_excel_kanife_parameters(self, BoardProcess):
         kanife_data = {}
-        # print(BoardProcess)
+        print(BoardProcess)
         try:
             # 读取 Excel 文件
             # file_path = '//192.168.2.33/incam-share/incam/genesis/sys/scripts/hdi-scr/Output/output_rout/knife_too_parameter/hdi_kanife_parameter_list-2025.05.16.xls'
@@ -264,30 +254,30 @@ class AutoMakePressRout(object):
         rou_tool_parameter = None
         if recs:
             if 'ROGERS' in recs_rgs[0][1]:
-                rou_tool_parameter = u'Rogers（罗杰斯）板料（PTFE）'
+                rou_tool_parameter = 'Rogers（罗杰斯）板料（PTFE）'
             elif recs[0][2] == 1:
-                rou_tool_parameter = u'半孔.PTH槽参数'
+                rou_tool_parameter = '半孔.PTH槽参数'
             elif recs_pth:
-                rou_tool_parameter = u'半孔.PTH槽参数'
+                rou_tool_parameter = '半孔.PTH槽参数'
             elif re.search('.+金手指|GF\+', recs[0][1]):
-                rou_tool_parameter = u'金手指卡板参数'
+                rou_tool_parameter = '金手指卡板参数'
             elif recs[0][9] == 1:
-                rou_tool_parameter = u'医疗板参数'
+                rou_tool_parameter = '医疗板参数'
             elif recs[0][4] == 1 or recs[0][5] == 1 or recs[0][6] == 1 or recs[0][7] == 1:
-                rou_tool_parameter = u'线圈板.无卤素.高TG.电池板'
+                rou_tool_parameter = '线圈板.无卤素.高TG.电池板'
             elif recs[0][3] == 1:
-                rou_tool_parameter = u'普通锣板参数.LED板参数.通孔板'
+                rou_tool_parameter = '普通锣板参数.LED板参数.通孔板'
             else:
-                rou_tool_parameter = u'普通锣板参数.LED板参数.通孔板'
+                rou_tool_parameter = '普通锣板参数.LED板参数.通孔板'
         else:
-            rou_tool_parameter = u'普通锣板参数.LED板参数.通孔板'
+            rou_tool_parameter = '普通锣板参数.LED板参数.通孔板'
         if jobname[1:4] in ('d10', 'a86'):
-            rou_tool_parameter = u'A86、D10'
+            rou_tool_parameter = 'A86、D10'
         if jobname[1:4] == '183':
             zjb = self.get_183_board_type()
             if zjb:
-                rou_tool_parameter = u'183系列支架板'
-        # print(rou_tool_parameter)
+                rou_tool_parameter = '183系列支架板'
+        print(rou_tool_parameter)
         return rou_tool_parameter
         # return rou_tool_parameter.decode('utf-8')
         # return rou_tool_parameter.encode('utf-8')

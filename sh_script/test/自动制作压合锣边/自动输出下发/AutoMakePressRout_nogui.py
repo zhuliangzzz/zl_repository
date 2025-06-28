@@ -12,7 +12,7 @@ import platform
 import re
 import sys
 import xlrd
-from PyQt4 import QtCore, QtGui
+# from PyQt4 import QtCore, QtGui
 
 if platform.system() == "Windows":
     sys.path.append(r"Z:/incam/genesis/sys/scripts/Package_HDI")
@@ -27,14 +27,23 @@ import Oracle_DB
 class AutoMakePressRout(object):
     def __init__(self):
         self.jobname = jobname[:13]
+        tmp_dir = "c:/tmp"
+        self.success_file = os.path.join(tmp_dir, "success_{0}.log".format(output_id))
+        self.error_file = os.path.join(tmp_dir, "success_{0}_check_error.log".format(output_id))
         mrp_info = get_inplan_mrp_info(self.jobname.upper())
         if not mrp_info:
-            QtGui.QMessageBox.warning(self, 'tips', "没有压合数据")
+            # QtGui.QMessageBox.warning(self, 'tips', "没有压合数据")
+            print(u"没有压合数据")
+            self.write_error_log(u"没有压合数据")
+            return
         self.job = gen.Job(jobname)
         self.stepname = 'panel'
         if self.stepname not in self.job.getSteps():
             # return "没有panel"
-            QtGui.QMessageBox.warning(self, 'tips', "没有panel")
+            # QtGui.QMessageBox.warning(self, 'tips', "没有panel")
+            print(u"没有panel")
+            self.write_error_log(u"没有panel")
+            return
         self.con = Oracle_DB.ORACLE_INIT()
         self.dbc_h = self.con.DB_CONNECT(host='172.20.218.193', servername='inmind.fls', port='1521',
                                          username='GETDATA', passwd='InplanAdmin')
@@ -79,7 +88,6 @@ class AutoMakePressRout(object):
                     inn_layer = 'inn'
                 else:
                     pnl_rout = 'pnl_rout%s' % pnl_rout_n
-                print(pnl_rout)
                 if pnl_rout == 'pnl_rout1' and not step.isLayer(pnl_rout) and step.isLayer('pnl_rout'):  # 如果没有pnl_rout1 找pnl_rout
                     pnl_rout = 'pnl_rout'
                 if step.isLayer(pnl_rout):
@@ -174,14 +182,18 @@ class AutoMakePressRout(object):
             with open('C:/tmp/recode_hdi_output_name', 'w') as writer:
                 writer.write(jobname)
         except IOError as e:
-            QtGui.QMessageBox.warning(None, u'文件写入异常', u'写入料号名到C:/tmp/recode_hdi_output_name失败\n(%s)！请检查！' % str(e))
-            sys.exit()
+            # QtGui.QMessageBox.warning(None, u'文件写入异常', u'写入料号名到C:/tmp/recode_hdi_output_name失败\n(%s)！请检查！' % str(e))
+            # sys.exit()
+            print(u'写入料号名到C:/tmp/recode_hdi_output_name失败\n(%s)！请检查！' % str(e))
+            self.write_error_log(u'写入料号名到C:/tmp/recode_hdi_output_name失败\n(%s)！请检查！' % str(e))
+            return
         for output_rout in output_routs:
             self.output(output_rout)
             step.removeLayer('_nc_%s_out_' % output_rout)
             # step.removeLayer(output_rout)
         print('success')
-        QtGui.QMessageBox.information(None, u'提示', u'压合锣边下发成功!!!')
+        self.write_error_log('success')
+        # QtGui.QMessageBox.information(None, u'提示', u'压合锣边下发成功!!!')
 
     def get_excel_kanife_parameters(self, BoardProcess):
         kanife_data = {}
@@ -303,7 +315,7 @@ class AutoMakePressRout(object):
             WHERE
                 i.ITEM_NAME = UPPER('%s')
             AND i.item_id = job.item_id
-			AND JOB.JOB_PRODUCT_LEVEL3_ like '%支架板%'
+			AND JOB.JOB_PRODUCT_LEVEL3_ like '%%支架板%%'
             AND i.revision_id = job.revision_id""" % self.jobname
         res = self.con.SQL_EXECUTE(self.dbc_h, sql)
         if res:
@@ -404,12 +416,15 @@ class AutoMakePressRout(object):
         #     print('FileNotFoundError')
         except IOError as e:
             print(e)
+            self.write_error_log(str(e))
         return num_tool
 
 
     def output(self, layer):
         ncPre = 'nc_%s' % layer
         offset_x, offset_y, op_scalex, scale_y, op_scaley, scale_center_y, xmirror, ymirror = 0, 0, 1, 1, 1, 1, 'no', 'no'
+        # print(os.environ.get('INCAM_PRODUCT'))
+        # self.job.PAUSE('A')
         if os.environ.get('INCAM_PRODUCT'):
             self.job.VOF()
             self.job.COM('nc_delete,layer=%s,ncset=%s' % (layer, ncPre))
@@ -438,12 +453,13 @@ class AutoMakePressRout(object):
             # self.job.VON()
         else:
             # unicode_path = u'\\\\192.168.2.174\\GCfiles\\CNC\\压合后锣边框'
-            unicode_path = u'D:\\disk\\rout\\%s' % jobname.upper()
-            self.output_path = unicode_path.encode(sys.getfilesystemencoding())
+            # unicode_path = u'D:\\disk\\rout\\%s' % jobname.upper()
+            # self.output_path = unicode_path.encode(sys.getfilesystemencoding())
+            self.output_path = output_path
             if not os.path.exists(self.output_path):
                 os.makedirs(self.output_path)
             # print('aaaa', self.output_path+ '\n')
-            self.job.COM("ncrset_page_open")
+            # self.job.COM("ncrset_page_open")
             self.job.COM("ncrset_cur,job=%s,step=%s,layer=%s,ncset=" % (jobname, self.stepname, layer))
             self.job.VOF()
             self.job.COM('ncrset_delete,name=%s' % ncPre)
@@ -791,10 +807,22 @@ class AutoMakePressRout(object):
  	}
         '''
 
+    def write_error_log(self, error_log):
+        if error_log == 'success':
+            with open(self.success_file, 'a') as write_file:
+                write_file.write(error_log)
+        else:
+            with open(self.error_file, 'a') as write_file:
+                write_file.write(error_log)
+
 
 if __name__ == '__main__':
-    app = QtGui.QApplication(sys.argv)
+    # app = QtGui.QApplication(sys.argv)
     # app.setStyle('Cleanlooks')
-    jobname = os.environ.get('JOB')
+    # jobname = os.environ.get('JOB')
+    jobname = sys.argv[1]
+    print(jobname)
+    output_id = sys.argv[2]
+    output_path = sys.argv[3]
     auto_make_press_rout = AutoMakePressRout()
     auto_make_press_rout.make_press_rout()

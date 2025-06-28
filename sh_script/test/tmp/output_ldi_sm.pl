@@ -1189,7 +1189,7 @@ sub Check_gk_cu_areas
 {	
 	my @selGkLayer;	
 	foreach my $lay_n (@layer_array){
-		if ($lay_n =~ /dk|gk/ && $sel_but{$lay_n} == 1){
+		if ($lay_n =~ /dk/ && $sel_but{$lay_n} == 1){
 			push @selGkLayer, $lay_n;			
 		}
 	}

@@ -152,10 +152,17 @@ sub jobfilter {
 	if ( $sel_site eq hanzi("胜宏全套"))  {
 		$tgz_path = "/windows/33.tgz/${client_no}系列";
 #		print "$client_no";
-		if(! -d hanzi($tgz_path)){
-			$client_no = $pp_data[0];
-			$tgz_path = "/windows/33.tgz/${client_no}系列";
-		}
+#		unless (-d "/windows/33.tgz/${client_no}系列"){
+#		print"/windows/33.tgz/" . $client_no . "系列\n";
+#		print"/windows/33.tgz/${client_no}\系列\n";
+#		print"/windows/33.tgz/D10系列\n";
+#		    print"yes\n";
+#		}
+#		if(! -d $tgz_path){
+#		    print"bbb$tgz_path\n";
+#			$client_no = $pp_data[0];
+#			$tgz_path = "/windows/33\.tgz/$client_no\系列";
+#		}
 		$windows_path = "//192.168.2.33/GC/设计课/外部资料/工程部外部取读资料/胜宏全套TGZ/$client_no\系列";
 #		chdir "$do_path";
 	} elsif ( $sel_site eq hanzi("临时")) {
